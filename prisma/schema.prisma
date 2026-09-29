@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Branch {
+  id          Int          @id @default(autoincrement())
+  name        String
+  code        String       @unique
+  address     String?
+  departments Department[]
+  employees   Employee[] @relation("EmployeeBranch")
+  transfersFrom Transfer[] @relation("SourceBranch")
+  transfersTo   Transfer[] @relation("TargetBranch")
+}
+
+model Department {
+  id         Int        @id @default(autoincrement())
+  name       String
+  branchCode String
+  branch     Branch     @relation(fields: [branchCode], references: [code])
+  employees  Employee[] @relation("EmployeeDepartment")
+  @@unique([name, branchCode])
+}
+
+model Employee {
+  id         Int          @id @default(autoincrement())
+  name       String
+  email      String       @unique
+  designation String?
+  baseSalary Float
+  allowanceStructure Json?
+  dateOfJoining String?
+  relievingDate String?
+  branchCode String
+  deptName   String
+  branch     Branch     @relation("EmployeeBranch", fields: [branchCode], references: [code])
+  department Department @relation("EmployeeDepartment", fields: [deptName, branchCode], references: [name, branchCode])
+  attendance Attendance[]
+  transfers Transfer[]
+}
+
+model Attendance {
+  id             Int      @id @default(autoincrement())
+  employeeId     Int
+  date           String
+  status         String
+  daysWorked    Float    @default(0)
+  overtimeHours Float    @default(0)
+  unpaidLeave   Float    @default(0)
+  paidLeave     Float    @default(0)
+  gazettedHoliday Float  @default(0)
+  branchCode    String
+  deptName      String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Transfer {
+  id                  Int      @id @default(autoincrement())
+  employeeId          Int
+  sourceBranchCode    String
+  targetBranchCode    String
+  effectiveDate       String
+  department          String?
+  relocationAllowance Float    @default(0)
+  salaryRevision      Float    @default(0)
+  status              String   @default("Approved")
+  employee            Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  sourceBranch        Branch   @relation("SourceBranch", fields: [sourceBranchCode], references: [code])
+  targetBranch        Branch   @relation("TargetBranch", fields: [targetBranchCode], references: [code])
+}
+
+model PayrollRun {
+  id          Int      @id @default(autoincrement())
+  month       String   @unique
+  workingDays Int
+  generatedAt DateTime @default(now())
+  exceptions  Json?
+}
+
+model PayrollRecord {
+  id                    Int      @id @default(autoincrement())
+  runMonth              String
+  employeeId            Int
+  sourceBranch          String
+  targetBranch          String
+  transferDate          String?
+  daysSource            Float    @default(0)
+  daysTarget            Float    @default(0)
+  lopDays               Float    @default(0)
+  grossPay              Float    @default(0)
+  deductions            Float    @default(0)
+  netPay                Float    @default(0)
+  overtimeHours         Float    @default(0)
+  overtimePay           Float    @default(0)
+  relocationAllowance   Float    @default(0)
+  salaryRevision        Float    @default(0)
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  category  String
+  name      String
+  values    Json?
+  createdAt DateTime @default(now())
+  @@index([category])
+}

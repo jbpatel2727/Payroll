@@ -1,0 +1,12 @@
+node_modules/
+.vercel/
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+.vercel
+.env*
+src/data.json
+src/payroll.sqlite
