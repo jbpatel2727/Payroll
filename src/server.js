@@ -146,6 +146,10 @@ function verifyPassword(password, stored) {
   }
 }
 
+function generateRandomPassword() {
+  return crypto.randomBytes(12).toString('base64url');
+}
+
 function parseCookies(req) {
   const header = req.headers.cookie;
   const cookies = {};
@@ -183,9 +187,10 @@ function ensureDefaultAdmin() {
   const db = loadDb();
   if (!db.authUsers || !db.authUsers.length) {
     if (!db.authUsers) db.authUsers = [];
-    db.authUsers.push({ id: 1790030679728, username: 'admin', name: 'Admin User', role: 'HR Manager', passwordHash: hashPassword('admin123') });
+    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || generateRandomPassword();
+    db.authUsers.push({ id: 1790030679728, username: 'admin', name: 'Admin User', role: 'HR Manager', passwordHash: hashPassword(initialPassword) });
     saveData(db);
-    console.log('Created default login -> username: admin, password: admin123 (please change this after first login)');
+    console.log(`Created default login -> username: admin, password: ${initialPassword} (change this after first login)`);
   }
 }
 ensureDefaultAdmin();
@@ -218,7 +223,7 @@ app.post('/api/auth/login', (req, res) => {
     );
     if (settingUser) {
       const uName = settingUser.values?.username || settingUser.name;
-      const rawPass = settingUser.values?.password || 'admin123';
+      const rawPass = settingUser.values?.password || generateRandomPassword();
       user = {
         id: settingUser.id,
         username: uName.toLowerCase().replace(/\s+/g, ''),
@@ -234,28 +239,12 @@ app.post('/api/auth/login', (req, res) => {
     }
   }
 
-  // If still not found and username matches 'admin', ensure default admin exists
-  if (!user && (cleanUsername === 'admin' || cleanUsername === 'admin user' || cleanUsername === 'administrator')) {
-    user = {
-      id: 1790030679728,
-      username: 'admin',
-      name: 'Admin User',
-      role: 'HR Manager',
-      passwordHash: hashPassword('admin123')
-    };
-    if (!db.authUsers) db.authUsers = [];
-    db.authUsers.push(user);
-    saveData(db);
-  }
-
   if (!user) {
     return res.status(401).json({ error: 'Invalid username or password' });
   }
 
-  const isValid = verifyPassword(cleanPassword, user.passwordHash) || 
-                  verifyPassword(String(password), user.passwordHash) ||
-                  cleanPassword === 'admin123' ||
-                  cleanPassword === 'password123';
+  const isValid = verifyPassword(cleanPassword, user.passwordHash) ||
+                  verifyPassword(String(password), user.passwordHash);
 
   if (!isValid) {
     return res.status(401).json({ error: 'Invalid username or password' });
@@ -946,7 +935,7 @@ app.post('/api/settings', (req, res) => {
   if (category === 'user') {
     if (!db.authUsers) db.authUsers = [];
     const uName = (values?.username || name).trim();
-    const rawPass = values?.password || 'admin123';
+    const rawPass = values?.password || generateRandomPassword();
     const authUser = {
       id: setting.id,
       username: uName.toLowerCase().replace(/\s+/g, ''),
@@ -1008,7 +997,7 @@ app.put('/api/settings/:id', (req, res) => {
         phone: setting.values.phone || '',
         email: setting.values.email || '',
         role: setting.values.role || 'Admin',
-        passwordHash: setting.values.password ? hashPassword(setting.values.password) : hashPassword('admin123')
+        passwordHash: hashPassword(setting.values.password || generateRandomPassword())
       };
       db.authUsers.push(authUser);
     } else {

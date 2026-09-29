@@ -1226,7 +1226,6 @@
             const passwordInput = document.getElementById('loginPassword');
             const username = usernameInput ? usernameInput.value.trim() : '';
             const password = passwordInput ? passwordInput.value.trim() : '';
-            const cleanUser = username.toLowerCase();
             const errorBox = document.getElementById('loginError');
             const submitBtn = document.getElementById('loginSubmitBtn');
             
@@ -1249,26 +1248,10 @@
                     return;
                 }
                 
-                // If server returned 401, check fallback
-                if (password === 'admin123' && (cleanUser === 'admin' || cleanUser === 'jayesh' || cleanUser === 'jbpatel2727@gmail.com' || cleanUser === 'administrator')) {
-                    const fallbackUser = { id: 1790030679728, username: 'admin', name: 'Admin User', role: 'HR Manager' };
-                    localStorage.setItem('auth_user', JSON.stringify(fallbackUser));
-                    document.getElementById('loginForm').reset();
-                    showApp(fallbackUser);
-                    return;
-                }
-
                 errorBox.innerText = data.error || 'Invalid username or password.';
                 errorBox.classList.remove('hidden');
             } catch (error) {
                 console.error('Login request error:', error);
-                if (password === 'admin123' && (cleanUser === 'admin' || cleanUser === 'jayesh' || cleanUser === 'jbpatel2727@gmail.com' || cleanUser === 'administrator')) {
-                    const fallbackUser = { id: 1790030679728, username: 'admin', name: 'Admin User', role: 'HR Manager' };
-                    localStorage.setItem('auth_user', JSON.stringify(fallbackUser));
-                    document.getElementById('loginForm').reset();
-                    showApp(fallbackUser);
-                    return;
-                }
                 errorBox.innerText = 'Unable to reach the server. Please try again.';
                 errorBox.classList.remove('hidden');
             } finally {
