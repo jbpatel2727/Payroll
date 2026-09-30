@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
 }
 
 model Branch {
@@ -108,4 +107,45 @@ model Setting {
   values    Json?
   createdAt DateTime @default(now())
   @@index([category])
+}
+
+model Permission {
+  id      Int              @id @default(autoincrement())
+  key     String           @unique
+  module  String
+  label   String
+  roles   RolePermission[]
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false)
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  name         String
+  email        String?
+  phone        String?
+  roleId       Int
+  role         Role     @relation(fields: [roleId], references: [id])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

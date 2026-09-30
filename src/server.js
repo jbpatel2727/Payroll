@@ -100,226 +100,161 @@ function addException(exceptions, type, message, employeeId) {
 }
 
 // --- AUTHENTICATION (login/logout via HttpOnly session cookie, no external deps) ---
-const crypto = require('crypto');
-const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
-const SESSION_SECRET = process.env.SESSION_SECRET || 'payroll-app-secure-fallback-secret-2026';
-const sessions = new Map();
-
-function signToken(payload) {
-  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const hmac = crypto.createHmac('sha256', SESSION_SECRET).update(payloadStr).digest('base64url');
-  return `${payloadStr}.${hmac}`;
-}
-
-function verifyToken(token) {
-  if (!token || typeof token !== 'string') return null;
-  const parts = token.split('.');
-  if (parts.length !== 2) return null;
-  const [payloadStr, signature] = parts;
-  try {
-    const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payloadStr).digest('base64url');
-    if (signature.length !== expectedSig.length) return null;
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) return null;
-    const payload = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
-    if (payload.expires && payload.expires < Date.now()) return null;
-    return payload;
-  } catch (error) {
-    return null;
-  }
-}
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
-}
-
-function verifyPassword(password, stored) {
-  if (!stored || !stored.includes(':')) return false;
-  const [salt, hash] = stored.split(':');
-  try {
-    const check = crypto.scryptSync(password, salt, 64);
-    const expected = Buffer.from(hash, 'hex');
-    return expected.length === check.length && crypto.timingSafeEqual(expected, check);
-  } catch (error) {
-    return false;
-  }
-}
-
-function generateRandomPassword() {
-  return crypto.randomBytes(12).toString('base64url');
-}
-
-function parseCookies(req) {
-  const header = req.headers.cookie;
-  const cookies = {};
-  if (!header) return cookies;
-  header.split(';').forEach(part => {
-    const index = part.indexOf('=');
-    if (index === -1) return;
-    cookies[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
-  });
-  return cookies;
-}
-
-function getSession(req) {
-  let token = parseCookies(req).session;
-  if (!token && req.headers.authorization) {
-    const parts = req.headers.authorization.split(' ');
-    if (parts.length === 2 && (parts[0].toLowerCase() === 'bearer')) {
-      token = parts[1];
-    }
-  }
-  if (!token) return null;
-  const verified = verifyToken(token);
-  if (verified) return verified;
-  const session = sessions.get(token);
-  if (!session) return null;
-  if (session.expires < Date.now()) { sessions.delete(token); return null; }
-  return session;
-}
+// Users/Roles/Permissions live in Prisma (src/prisma.js) — see src/auth.js for token/
+// password helpers and src/permissions.js for the permission catalog + role seeding.
+const prisma = require('./prisma');
+const {
+  SESSION_MAX_AGE_MS,
+  signToken,
+  hashPassword,
+  verifyPassword,
+  generateRandomPassword,
+  getSession,
+} = require('./auth');
+const { seedRbac } = require('./permissions');
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, username: user.username, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    phone: user.phone,
+    role: { id: user.role.id, name: user.role.name },
+    permissions: user.role.permissions.map(rp => rp.permission.key),
+  };
 }
 
-function ensureDefaultAdmin() {
-  const db = loadDb();
-  if (!db.authUsers || !db.authUsers.length) {
-    if (!db.authUsers) db.authUsers = [];
-    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || generateRandomPassword();
-    db.authUsers.push({ id: 1790030679728, username: 'admin', name: 'Admin User', role: 'HR Manager', passwordHash: hashPassword(initialPassword) });
-    saveData(db);
-    console.log(`Created default login -> username: admin, password: ${initialPassword} (change this after first login)`);
-  }
+function findUserByUsername(username) {
+  return prisma.user.findFirst({
+    where: { username, isActive: true },
+    include: { role: { include: { permissions: { include: { permission: true } } } } },
+  });
 }
-ensureDefaultAdmin();
 
-app.post('/api/auth/login', (req, res) => {
+function findUserById(id) {
+  return prisma.user.findFirst({
+    where: { id, isActive: true },
+    include: { role: { include: { permissions: { include: { permission: true } } } } },
+  });
+}
+
+// Every request waits on this before being handled, so seeding is guaranteed to have
+// completed regardless of whether the app is run via `node src/server.js` (local) or
+// required as a handler by a serverless platform (api/index.js), where app.listen never runs.
+let rbacSeedError = null;
+const rbacReady = seedRbac(prisma, { hashPassword, generateRandomPassword }).catch(err => {
+  console.error('Failed to seed RBAC data:', err);
+  rbacSeedError = err;
+});
+app.use(async (req, res, next) => {
+  await rbacReady;
+  if (rbacSeedError) return res.status(500).json({ error: 'Server initialization failed' });
+  next();
+});
+
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
-  const db = loadDb();
-  
+
   const cleanUsername = String(username).trim().toLowerCase();
   const cleanPassword = String(password).trim();
 
-  // Find in authUsers
-  let user = (db.authUsers || []).find(item => 
-    item.username.toLowerCase() === cleanUsername || 
-    (item.email && item.email.toLowerCase() === cleanUsername) ||
-    (item.name && item.name.toLowerCase() === cleanUsername) ||
-    (item.phone && String(item.phone).trim() === cleanUsername)
-  );
-
-  // If not found in authUsers, check settings users
-  if (!user && Array.isArray(db.settings)) {
-    const settingUser = db.settings.find(s => 
-      s.category === 'user' && (
-        (s.name && s.name.toLowerCase() === cleanUsername) ||
-        (s.values?.username && s.values.username.toLowerCase() === cleanUsername) ||
-        (s.values?.email && s.values.email.toLowerCase() === cleanUsername) ||
-        (s.values?.phone && String(s.values.phone).trim() === cleanUsername)
-      )
-    );
-    if (settingUser) {
-      const uName = settingUser.values?.username || settingUser.name;
-      const rawPass = settingUser.values?.password || generateRandomPassword();
-      user = {
-        id: settingUser.id,
-        username: uName.toLowerCase().replace(/\s+/g, ''),
-        name: settingUser.name,
-        phone: settingUser.values?.phone || '',
-        email: settingUser.values?.email || '',
-        role: settingUser.values?.role || 'Admin',
-        passwordHash: hashPassword(rawPass)
-      };
-      if (!db.authUsers) db.authUsers = [];
-      db.authUsers.push(user);
-      saveData(db);
-    }
-  }
-
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid username or password' });
-  }
-
-  const isValid = verifyPassword(cleanPassword, user.passwordHash) ||
-                  verifyPassword(String(password), user.passwordHash);
-
-  if (!isValid) {
+  const user = await findUserByUsername(cleanUsername);
+  if (!user || !verifyPassword(cleanPassword, user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid username or password' });
   }
 
   const sessionData = {
     userId: user.id,
     username: user.username,
-    name: user.name,
-    role: user.role,
     expires: Date.now() + SESSION_MAX_AGE_MS
   };
   const token = signToken(sessionData);
-  sessions.set(token, sessionData);
 
   const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https' || process.env.NODE_ENV === 'production';
   const secureFlag = isHttps ? '; Secure' : '';
   res.setHeader('Set-Cookie', `session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_MS / 1000}${secureFlag}`);
-  
+
   const responseData = publicUser(user);
   responseData.token = token;
   res.json(responseData);
-});
+}));
 
 app.post('/api/auth/logout', (req, res) => {
-  const token = parseCookies(req).session;
-  if (token) sessions.delete(token);
   res.setHeader('Set-Cookie', 'session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0');
   res.json({ message: 'Logged out' });
 });
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', asyncHandler(async (req, res) => {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
-  const db = loadDb();
-  const user = (db.authUsers || []).find(item => String(item.id) === String(session.userId) || item.username.toLowerCase() === (session.username || '').toLowerCase());
-  if (user) {
-    const data = publicUser(user);
-    data.token = signToken(session);
-    return res.json(data);
-  }
-  if (session.username) {
-    return res.json({ id: session.userId, name: session.name || session.username, username: session.username, role: session.role || 'Admin', token: signToken(session) });
-  }
-  res.status(401).json({ error: 'Not authenticated' });
-});
+  const user = await findUserById(session.userId);
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  const data = publicUser(user);
+  data.token = signToken(session);
+  res.json(data);
+}));
 
-// All API routes below this point require an authenticated session.
+// All API routes below this point require an authenticated session backed by a live,
+// active user record. req.currentUser carries the user's CURRENT role/permissions,
+// re-read from the database on every request — the role embedded in the session token
+// is never trusted for authorization, since it would otherwise go stale for up to
+// SESSION_MAX_AGE_MS after an admin changes the user's role.
 const PUBLIC_AUTH_PATHS = ['/auth/login', '/auth/logout', '/auth/me'];
-app.use('/api', (req, res, next) => {
+app.use('/api', asyncHandler(async (req, res, next) => {
   if (PUBLIC_AUTH_PATHS.includes(req.path)) return next();
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Authentication required' });
-  req.userId = session.userId;
+  const user = await findUserById(session.userId);
+  if (!user) return res.status(401).json({ error: 'Authentication required' });
+  req.userId = user.id;
+  req.currentUser = publicUser(user);
   next();
-});
+}));
 
-app.post('/api/auth/change-password', (req, res) => {
+// Route-level permission gate. Must run after the middleware above, which populates
+// req.currentUser. Frontend menu/button hiding is UX only — this is the real boundary.
+function authorize(permissionKey) {
+  return (req, res, next) => {
+    if (!req.currentUser || !req.currentUser.permissions.includes(permissionKey)) {
+      return res.status(403).json({ error: 'You do not have permission to perform this action.' });
+    }
+    next();
+  };
+}
+
+// Express 4 does not catch rejected promises thrown by async route handlers — an
+// unhandled one would crash the whole process. Every async handler in this file
+// (Prisma-backed routes) is wrapped with this so failures become a clean 500 instead.
+function asyncHandler(fn) {
+  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+}
+
+app.post('/api/auth/change-password', asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password are required' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
-  const db = loadDb();
-  const user = db.authUsers.find(item => item.id === req.userId);
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user || !verifyPassword(currentPassword, user.passwordHash)) return res.status(401).json({ error: 'Current password is incorrect' });
-  user.passwordHash = hashPassword(newPassword);
-  saveData(db);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword(newPassword) } });
   res.json({ message: 'Password updated successfully' });
-});
+}));
 
 // --- SYNC API for client-server state synchronization ---
-app.get('/api/sync', (req, res) => {
-  res.json(loadDb());
+// authUsers is a legacy collection superseded by the Prisma User/Role/Permission model
+// (see src/prisma.js) and must never be included in a sync payload — it used to leak
+// password hashes to any authenticated user.
+function sanitizeForSync(db) {
+  const { authUsers, ...rest } = db;
+  return rest;
+}
+
+app.get('/api/sync', authorize('settings.view'), (req, res) => {
+  res.json(sanitizeForSync(loadDb()));
 });
 
-app.post('/api/sync', (req, res) => {
+app.post('/api/sync', authorize('settings.edit'), (req, res) => {
   const incoming = req.body || {};
   const db = loadDb();
   let changed = false;
@@ -360,15 +295,15 @@ app.post('/api/sync', (req, res) => {
   });
 
   if (changed) saveData(db);
-  res.json({ success: true, db: loadDb() });
+  res.json({ success: true, db: sanitizeForSync(loadDb()) });
 });
 
 // --- 1. BRANCH APIs ---
-app.get('/api/branches', (req, res) => {
+app.get('/api/branches', authorize('branches.view'), (req, res) => {
   res.json(loadDb().branches);
 });
 
-app.post('/api/branches', (req, res) => {
+app.post('/api/branches', authorize('branches.edit'), (req, res) => {
   const db = loadData();
   const branch = { id: Date.now(), ...req.body };
   if (!db.branches) db.branches = [];
@@ -377,7 +312,7 @@ app.post('/api/branches', (req, res) => {
   res.status(201).json(branch);
 });
 
-app.post('/api/branches/update', (req, res) => {
+app.post('/api/branches/update', authorize('branches.edit'), (req, res) => {
   const { id, name, code, address } = req.body;
   const db = loadData();
   const b = (db.branches || []).find(item => String(item.id) === String(id));
@@ -391,7 +326,7 @@ app.post('/api/branches/update', (req, res) => {
   res.status(404).json({ error: 'Branch not found' });
 });
 
-app.post('/api/branches/delete', (req, res) => {
+app.post('/api/branches/delete', authorize('branches.edit'), (req, res) => {
   const { id } = req.body;
   const db = loadData();
   db.branches = (db.branches || []).filter(b => String(b.id) !== String(id));
@@ -400,11 +335,11 @@ app.post('/api/branches/delete', (req, res) => {
 });
 
 // --- 2. DEPARTMENT APIs ---
-app.get('/api/departments', (req, res) => {
+app.get('/api/departments', authorize('departments.view'), (req, res) => {
   res.json(loadDb().departments);
 });
 
-app.post('/api/departments', (req, res) => {
+app.post('/api/departments', authorize('departments.edit'), (req, res) => {
   const db = loadData();
   const dept = { id: Date.now(), ...req.body };
   if (!db.departments) db.departments = [];
@@ -413,7 +348,7 @@ app.post('/api/departments', (req, res) => {
   res.status(201).json(dept);
 });
 
-app.post('/api/departments/update', (req, res) => {
+app.post('/api/departments/update', authorize('departments.edit'), (req, res) => {
   const { id, name, branchCode } = req.body;
   const db = loadData();
   const d = (db.departments || []).find(item => String(item.id) === String(id));
@@ -426,7 +361,7 @@ app.post('/api/departments/update', (req, res) => {
   res.status(404).json({ error: 'Department not found' });
 });
 
-app.post('/api/departments/delete', (req, res) => {
+app.post('/api/departments/delete', authorize('departments.edit'), (req, res) => {
   const { id } = req.body;
   const db = loadData();
   db.departments = (db.departments || []).filter(d => String(d.id) !== String(id));
@@ -435,18 +370,18 @@ app.post('/api/departments/delete', (req, res) => {
 });
 
 // --- 3. EMPLOYEE APIs ---
-app.get('/api/employees', (req, res) => {
+app.get('/api/employees', authorize('employees.view'), (req, res) => {
   res.json(loadDb().employees);
 });
 
-app.get('/api/employees/:id', (req, res) => {
+app.get('/api/employees/:id', authorize('employees.view'), (req, res) => {
   const db = loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(req.params.id));
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
   res.json(emp);
 });
 
-app.post('/api/employees', (req, res) => {
+app.post('/api/employees', authorize('employees.edit'), (req, res) => {
   const db = loadDb();
   const incomingId = req.body.id ? (Number(req.body.id) || req.body.id) : (Date.now() + Math.random());
   const empCode = req.body.empCode || ('EMP-' + String((db.employees || []).length + 1).padStart(3, '0'));
@@ -481,7 +416,7 @@ app.post('/api/employees', (req, res) => {
   res.status(201).json(emp);
 });
 
-app.put('/api/employees/:id', (req, res) => {
+app.put('/api/employees/:id', authorize('employees.edit'), (req, res) => {
   const db = loadDb();
   const paramId = req.params.id;
   let emp = (db.employees || []).find(e => String(e.id) === String(paramId) || (typeof e.id === 'number' && !isNaN(Number(paramId)) && e.id === Number(paramId)));
@@ -546,7 +481,7 @@ app.put('/api/employees/:id', (req, res) => {
   res.json(emp);
 });
 
-app.delete('/api/employees/:id', (req, res) => {
+app.delete('/api/employees/:id', authorize('employees.edit'), (req, res) => {
   const db = loadDb();
   const paramId = req.params.id;
   db.employees = (db.employees || []).filter(e => String(e.id) !== String(paramId));
@@ -561,7 +496,7 @@ app.delete('/api/employees/:id', (req, res) => {
 });
 
 // Shift Branch API (legacy support)
-app.post('/api/employees/update-branch', (req, res) => {
+app.post('/api/employees/update-branch', authorize('employees.edit'), (req, res) => {
   const { id, branchCode } = req.body;
   const db = loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(id));
@@ -574,7 +509,7 @@ app.post('/api/employees/update-branch', (req, res) => {
 });
 
 // Full Profile Edit (legacy support)
-app.post('/api/employees/update-full', (req, res) => {
+app.post('/api/employees/update-full', authorize('employees.edit'), (req, res) => {
   const { id, name, email, salary, branchCode, deptName } = req.body;
   const db = loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(id));
@@ -597,7 +532,7 @@ app.post('/api/employees/update-full', (req, res) => {
 });
 
 // Employee Delete (legacy support)
-app.post('/api/employees/delete', (req, res) => {
+app.post('/api/employees/delete', authorize('employees.edit'), (req, res) => {
   const { id } = req.body;
   const db = loadDb();
   db.employees = (db.employees || []).filter(e => String(e.id) !== String(id));
@@ -605,11 +540,11 @@ app.post('/api/employees/delete', (req, res) => {
   res.json({ message: 'Employee deleted' });
 });
 
-app.get('/api/transfers', (req, res) => {
+app.get('/api/transfers', authorize('transfers.view'), (req, res) => {
   res.json(loadDb().transfers);
 });
 
-app.post('/api/transfers', (req, res) => {
+app.post('/api/transfers', authorize('transfers.edit'), (req, res) => {
   const { employeeId, sourceBranch, targetBranch, effectiveDate, relocationAllowance, salaryRevision, department } = req.body;
   const db = loadDb();
   const employee = db.employees.find(item => String(item.id) === String(employeeId));
@@ -629,11 +564,11 @@ app.post('/api/transfers', (req, res) => {
 });
 
 // --- 4. ATTENDANCE APIs ---
-app.get('/api/attendance', (req, res) => {
+app.get('/api/attendance', authorize('attendance.view'), (req, res) => {
   res.json(loadDb().attendance);
 });
 
-app.post('/api/attendance', (req, res) => {
+app.post('/api/attendance', authorize('attendance.edit'), (req, res) => {
   const db = loadDb();
   const { empId, empName, date, status, daysWorked, overtimeHours, unpaidLeave, paidLeave, gazettedHoliday } = req.body;
   const emp = db.employees.find(e => String(e.id) === String(empId)) || (empName ? db.employees.find(e => e.name === empName) : null);
@@ -678,7 +613,7 @@ app.post('/api/attendance', (req, res) => {
   res.status(201).json(record);
 });
 
-app.post('/api/attendance/mark-all-present', (req, res) => {
+app.post('/api/attendance/mark-all-present', authorize('attendance.bulkMark'), (req, res) => {
   const { date } = req.body;
   const db = loadData();
 
@@ -706,7 +641,7 @@ app.post('/api/attendance/mark-all-present', (req, res) => {
   res.status(201).json({ message: 'All employees marked present' });
 });
 
-app.post('/api/attendance/update', (req, res) => {
+app.post('/api/attendance/update', authorize('attendance.edit'), (req, res) => {
   const { id, status, overtimeHours } = req.body;
   const db = loadData();
   const record = (db.attendance || []).find(a => String(a.id) === String(id));
@@ -719,7 +654,7 @@ app.post('/api/attendance/update', (req, res) => {
   res.status(404).json({ error: 'Record not found' });
 });
 
-app.post('/api/attendance/delete', (req, res) => {
+app.post('/api/attendance/delete', authorize('attendance.edit'), (req, res) => {
   const { id } = req.body;
   const db = loadData();
   if (db.attendance) {
@@ -731,11 +666,11 @@ app.post('/api/attendance/delete', (req, res) => {
 });
 
 // --- 5. PAYROLL APIs ---
-app.get('/api/payroll', (req, res) => {
+app.get('/api/payroll', authorize('payroll.view'), (req, res) => {
   res.json(loadDb().payroll);
 });
 
-app.post('/api/payroll/generate', (req, res) => {
+app.post('/api/payroll/generate', authorize('payroll.generate'), (req, res) => {
   const { month, workingDays, overtimeMultiplier = 1.5, statutoryDeductions = 0, gazettedHolidays = 0 } = req.body;
   if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'Month must use YYYY-MM format' });
   const db = loadDb();
@@ -802,7 +737,7 @@ app.post('/api/payroll/generate', (req, res) => {
 });
 
 // --- 6. REPORT API ---
-app.get('/api/reports/monthly', (req, res) => {
+app.get('/api/reports/monthly', authorize('reports.view'), (req, res) => {
   const { month, branch, dept, empId, emp } = req.query;
   const db = loadData();
 
@@ -829,7 +764,7 @@ app.get('/api/reports/monthly', (req, res) => {
   res.json(filtered);
 });
 
-app.get('/api/payroll/:month/summary', (req, res) => {
+app.get('/api/payroll/:month/summary', authorize('payroll.view'), (req, res) => {
   const db = loadDb();
   const records = db.payroll.filter(record => record.month === req.params.month);
   const run = db.payrollRuns.find(item => item.month === req.params.month) || { exceptions: [] };
@@ -847,7 +782,7 @@ app.get('/api/payroll/:month/summary', (req, res) => {
 });
 
 // REST CRUD aliases used by the settings and future data-management screens.
-app.put('/api/branches/:id', (req, res) => {
+app.put('/api/branches/:id', authorize('branches.edit'), (req, res) => {
   const db = loadDb();
   const branch = db.branches.find(item => String(item.id) === String(req.params.id));
   if (!branch) return res.status(404).json({ error: 'Branch not found' });
@@ -855,119 +790,107 @@ app.put('/api/branches/:id', (req, res) => {
   saveData(db); res.json(branch);
 });
 
-app.delete('/api/branches/:id', (req, res) => {
+app.delete('/api/branches/:id', authorize('branches.edit'), (req, res) => {
   const db = loadDb(); db.branches = db.branches.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Branch deleted' });
 });
 
-app.put('/api/departments/:id', (req, res) => {
+app.put('/api/departments/:id', authorize('departments.edit'), (req, res) => {
   const db = loadDb(); const department = db.departments.find(item => String(item.id) === String(req.params.id));
   if (!department) return res.status(404).json({ error: 'Department not found' });
   Object.assign(department, { name: req.body.name ?? department.name, branchCode: req.body.branchCode ?? department.branchCode });
   saveData(db); res.json(department);
 });
 
-app.delete('/api/departments/:id', (req, res) => {
+app.delete('/api/departments/:id', authorize('departments.edit'), (req, res) => {
   const db = loadDb(); db.departments = db.departments.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Department deleted' });
 });
 
-app.put('/api/attendance/:id', (req, res) => {
+app.put('/api/attendance/:id', authorize('attendance.edit'), (req, res) => {
   const db = loadDb(); const record = db.attendance.find(item => String(item.id) === String(req.params.id));
   if (!record) return res.status(404).json({ error: 'Attendance record not found' });
   Object.assign(record, req.body, { id: record.id, empId: record.empId }); saveData(db); res.json(record);
 });
 
-app.delete('/api/attendance/:id', (req, res) => {
+app.delete('/api/attendance/:id', authorize('attendance.edit'), (req, res) => {
   const db = loadDb(); db.attendance = db.attendance.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Attendance deleted' });
 });
 
-app.put('/api/transfers/:id', (req, res) => {
+app.put('/api/transfers/:id', authorize('transfers.edit'), (req, res) => {
   const db = loadDb(); const transfer = db.transfers.find(item => String(item.id) === String(req.params.id));
   if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
   Object.assign(transfer, req.body, { id: transfer.id, employeeId: transfer.employeeId }); saveData(db); res.json(transfer);
 });
 
-app.delete('/api/transfers/:id', (req, res) => {
+app.delete('/api/transfers/:id', authorize('transfers.edit'), (req, res) => {
   const db = loadDb(); db.transfers = db.transfers.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Transfer deleted' });
 });
 
-app.get('/api/expenses', (req, res) => res.json(loadDb().expenses));
+app.get('/api/expenses', authorize('expenses.view'), (req, res) => res.json(loadDb().expenses));
 
-app.post('/api/expenses', (req, res) => {
+app.post('/api/expenses', authorize('expenses.edit'), (req, res) => {
   const { category, amount, date, note, payrollMonth, employeeId, employeeName } = req.body;
   if (!category || number(amount) <= 0) return res.status(400).json({ error: 'Category and positive amount are required' });
   const db = loadDb(); const expense = { id: Date.now() + Math.random(), category, amount: number(amount), date: date || new Date().toISOString().slice(0, 10), note: note || '', payrollMonth: payrollMonth || '', employeeId: employeeId || null, employeeName: employeeName || '', source: req.body.source || 'Manual' };
   db.expenses.push(expense); saveData(db); res.status(201).json(expense);
 });
 
-app.put('/api/expenses/:id', (req, res) => {
+app.put('/api/expenses/:id', authorize('expenses.edit'), (req, res) => {
   const db = loadDb(); const expense = db.expenses.find(item => String(item.id) === String(req.params.id));
   if (!expense) return res.status(404).json({ error: 'Expense not found' });
   Object.assign(expense, req.body, { id: expense.id, amount: number(req.body.amount ?? expense.amount) }); saveData(db); res.json(expense);
 });
 
-app.delete('/api/expenses/:id', (req, res) => {
+app.delete('/api/expenses/:id', authorize('expenses.edit'), (req, res) => {
   const db = loadDb(); db.expenses = db.expenses.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Expense deleted' });
 });
 
-app.put('/api/payroll/:id', (req, res) => {
+app.put('/api/payroll/:id', authorize('payroll.edit'), (req, res) => {
   const db = loadDb(); const payroll = db.payroll.find(item => String(item.id) === String(req.params.id));
   if (!payroll) return res.status(404).json({ error: 'Payroll record not found' });
   Object.assign(payroll, req.body, { id: payroll.id, empId: payroll.empId }); saveData(db); res.json(payroll);
 });
 
-app.delete('/api/payroll/:id', (req, res) => {
+app.delete('/api/payroll/:id', authorize('payroll.edit'), (req, res) => {
   const db = loadDb(); db.payroll = db.payroll.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Payroll record deleted' });
 });
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', authorize('settings.view'), (req, res) => {
   res.json(loadDb().settings);
 });
 
-app.post('/api/settings', (req, res) => {
+// System user accounts are managed exclusively via /api/users (Prisma-backed) — this
+// generic settings collection must never carry a 'user' category record again, since
+// that used to be how any authenticated user could self-grant an arbitrary role.
+app.post('/api/settings', authorize('settings.edit'), (req, res) => {
   const { id, category, name, values } = req.body;
   if (!category || !name) return res.status(400).json({ error: 'Category and name are required' });
+  if (category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
   const db = loadDb();
   const settingId = id ? (Number(id) || id) : (Date.now() + Math.random());
   const setting = { id: settingId, category, name, values: values || {}, createdAt: new Date().toISOString() };
   if (!db.settings) db.settings = [];
   db.settings.push(setting);
-
-  if (category === 'user') {
-    if (!db.authUsers) db.authUsers = [];
-    const uName = (values?.username || name).trim();
-    const rawPass = values?.password || generateRandomPassword();
-    const authUser = {
-      id: setting.id,
-      username: uName.toLowerCase().replace(/\s+/g, ''),
-      name: name,
-      phone: values?.phone || '',
-      email: values?.email || '',
-      role: values?.role || 'Admin',
-      passwordHash: hashPassword(rawPass)
-    };
-    db.authUsers.push(authUser);
-  }
-
   saveData(db);
   res.status(201).json(setting);
 });
 
-app.delete('/api/settings/:id', (req, res) => {
+app.delete('/api/settings/:id', authorize('settings.edit'), (req, res) => {
   const db = loadDb();
   db.settings = (db.settings || []).filter(setting => String(setting.id) !== String(req.params.id));
-  db.authUsers = (db.authUsers || []).filter(user => String(user.id) !== String(req.params.id));
   saveData(db);
   res.json({ message: 'Setting removed' });
 });
 
-app.put('/api/settings/:id', (req, res) => {
+app.put('/api/settings/:id', authorize('settings.edit'), (req, res) => {
+  if (req.body.category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
   const db = loadDb();
   const paramId = req.params.id;
   let setting = (db.settings || []).find(item => String(item.id) === String(paramId) || (typeof item.id === 'number' && !isNaN(Number(paramId)) && item.id === Number(paramId)));
-  
+
   if (!setting && req.body.category && req.body.name) {
     setting = (db.settings || []).find(item => item.category === req.body.category && item.name === req.body.name);
   }
+  if (setting && setting.category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
 
   if (!setting) {
     setting = {
@@ -985,35 +908,191 @@ app.put('/api/settings/:id', (req, res) => {
     setting.values = req.body.values || setting.values || {};
   }
 
-  if (setting.category === 'user' || req.body.category === 'user') {
-    if (!db.authUsers) db.authUsers = [];
-    let authUser = db.authUsers.find(u => String(u.id) === String(setting.id) || (setting.values?.username && u.username === setting.values.username.toLowerCase()));
-    const uName = (setting.values.username || setting.name).trim();
-    if (!authUser) {
-      authUser = {
-        id: setting.id,
-        username: uName.toLowerCase().replace(/\s+/g, ''),
-        name: setting.name,
-        phone: setting.values.phone || '',
-        email: setting.values.email || '',
-        role: setting.values.role || 'Admin',
-        passwordHash: hashPassword(setting.values.password || generateRandomPassword())
-      };
-      db.authUsers.push(authUser);
-    } else {
-      authUser.name = setting.name;
-      authUser.username = uName.toLowerCase().replace(/\s+/g, '');
-      authUser.phone = setting.values.phone || authUser.phone || '';
-      authUser.email = setting.values.email || authUser.email || '';
-      authUser.role = setting.values.role || authUser.role || 'Admin';
-      if (setting.values.password) {
-        authUser.passwordHash = hashPassword(setting.values.password);
-      }
+  saveData(db);
+  res.json(setting);
+});
+
+// --- PERMISSIONS / ROLES / USERS (RBAC — Prisma-backed) ---
+function publicRole(role) {
+  return {
+    id: role.id,
+    name: role.name,
+    description: role.description,
+    isSystem: role.isSystem,
+    userCount: role._count ? role._count.users : undefined,
+    permissions: role.permissions.map(rp => rp.permission.key),
+  };
+}
+
+app.get('/api/permissions', authorize('roles.view'), asyncHandler(async (req, res) => {
+  const permissions = await prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { key: 'asc' }] });
+  res.json(permissions);
+}));
+
+app.get('/api/roles', authorize('roles.view'), asyncHandler(async (req, res) => {
+  const roles = await prisma.role.findMany({
+    include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
+    orderBy: { name: 'asc' },
+  });
+  res.json(roles.map(publicRole));
+}));
+
+app.post('/api/roles', authorize('roles.manage'), asyncHandler(async (req, res) => {
+  const { name, description, permissions } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Role name is required' });
+  const keys = Array.isArray(permissions) ? permissions : [];
+  const validPermissions = keys.length ? await prisma.permission.findMany({ where: { key: { in: keys } } }) : [];
+  try {
+    const role = await prisma.role.create({
+      data: {
+        name: String(name).trim(),
+        description: description || null,
+        isSystem: false,
+        permissions: { create: validPermissions.map(p => ({ permissionId: p.id })) },
+      },
+      include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
+    });
+    res.status(201).json(publicRole(role));
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'A role with this name already exists' });
+    throw err;
+  }
+}));
+
+app.put('/api/roles/:id', authorize('roles.manage'), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, description, permissions } = req.body || {};
+  const role = await prisma.role.findUnique({ where: { id } });
+  if (!role) return res.status(404).json({ error: 'Role not found' });
+  if (role.isSystem && name !== undefined && String(name).trim() !== role.name) {
+    return res.status(400).json({ error: 'Default system role names cannot be changed.' });
+  }
+
+  const data = {};
+  if (!role.isSystem && name !== undefined) data.name = String(name).trim();
+  if (description !== undefined) data.description = description || null;
+
+  if (Array.isArray(permissions)) {
+    const validPermissions = permissions.length ? await prisma.permission.findMany({ where: { key: { in: permissions } } }) : [];
+    await prisma.rolePermission.deleteMany({ where: { roleId: id } });
+    if (validPermissions.length) {
+      await prisma.rolePermission.createMany({ data: validPermissions.map(p => ({ roleId: id, permissionId: p.id })) });
     }
   }
 
-  saveData(db);
-  res.json(setting);
+  try {
+    const updated = await prisma.role.update({
+      where: { id },
+      data,
+      include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
+    });
+    res.json(publicRole(updated));
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'A role with this name already exists' });
+    throw err;
+  }
+}));
+
+app.delete('/api/roles/:id', authorize('roles.manage'), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const role = await prisma.role.findUnique({ where: { id }, include: { _count: { select: { users: true } } } });
+  if (!role) return res.status(404).json({ error: 'Role not found' });
+  if (role.isSystem) return res.status(400).json({ error: 'Default system roles cannot be deleted.' });
+  if (role._count.users > 0) return res.status(400).json({ error: 'Reassign users away from this role before deleting it.' });
+  await prisma.role.delete({ where: { id } });
+  res.json({ message: 'Role removed' });
+}));
+
+function publicSystemUser(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    isActive: user.isActive,
+    role: { id: user.role.id, name: user.role.name },
+  };
+}
+
+app.get('/api/users', authorize('users.view'), asyncHandler(async (req, res) => {
+  const users = await prisma.user.findMany({ include: { role: true }, orderBy: { username: 'asc' } });
+  res.json(users.map(publicSystemUser));
+}));
+
+app.post('/api/users', authorize('users.manage'), asyncHandler(async (req, res) => {
+  const { username, password, name, email, phone, roleId } = req.body || {};
+  if (!username || !password || !name || !roleId) {
+    return res.status(400).json({ error: 'Username, password, name, and role are required' });
+  }
+  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const role = await prisma.role.findUnique({ where: { id: Number(roleId) } });
+  if (!role) return res.status(400).json({ error: 'Invalid role' });
+  const cleanUsername = String(username).trim().toLowerCase().replace(/\s+/g, '');
+  try {
+    const user = await prisma.user.create({
+      data: {
+        username: cleanUsername,
+        name: String(name).trim(),
+        email: email || null,
+        phone: phone || null,
+        roleId: role.id,
+        passwordHash: hashPassword(String(password)),
+      },
+      include: { role: true },
+    });
+    res.status(201).json(publicSystemUser(user));
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: 'A user with this username already exists' });
+    throw err;
+  }
+}));
+
+app.put('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, email, phone, roleId, isActive, password } = req.body || {};
+  const data = {};
+  if (name !== undefined) data.name = String(name).trim();
+  if (email !== undefined) data.email = email || null;
+  if (phone !== undefined) data.phone = phone || null;
+  if (isActive !== undefined) data.isActive = Boolean(isActive);
+  if (roleId !== undefined) {
+    const role = await prisma.role.findUnique({ where: { id: Number(roleId) } });
+    if (!role) return res.status(400).json({ error: 'Invalid role' });
+    data.roleId = role.id;
+  }
+  if (password) {
+    if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    data.passwordHash = hashPassword(String(password));
+  }
+  try {
+    const user = await prisma.user.update({ where: { id }, data, include: { role: true } });
+    res.json(publicSystemUser(user));
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'User not found' });
+    throw err;
+  }
+}));
+
+app.delete('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.userId) return res.status(400).json({ error: 'You cannot delete your own account.' });
+  const user = await prisma.user.findUnique({ where: { id }, include: { role: true } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role.name === 'Super Admin') {
+    const superAdminCount = await prisma.user.count({ where: { role: { name: 'Super Admin' }, isActive: true } });
+    if (superAdminCount <= 1) return res.status(400).json({ error: 'Cannot delete the last Super Admin account.' });
+  }
+  await prisma.user.delete({ where: { id } });
+  res.json({ message: 'User removed' });
+}));
+
+// Must be registered after all routes. Never leak internals (spec: never expose
+// database stack traces to users) — log the real error, return a generic message.
+app.use((err, req, res, next) => {
+  console.error('Unhandled request error:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'An unexpected error occurred.' });
 });
 
 if (require.main === module) {

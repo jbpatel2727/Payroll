@@ -11,16 +11,21 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-libsql": "^7.10.0",
+    "@prisma/client": "7.10.0",
     "express": "^4.18.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.0",
-    "prisma": "^8.0.0-rc.15"
+    "prisma": "7.10.0"
   },
   "description": "",
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "allowScripts": {
+    "@prisma/engines@7.10.0": true,
+    "prisma@7.10.0": true
+  }
 }

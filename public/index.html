@@ -76,10 +76,10 @@
             </div>
             <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
                 <a href="#" onclick="switchPage('Dashboard', this)" class="menu-item flex items-center px-4 py-2.5 bg-indigo-800 rounded-lg text-white font-medium transition"><i class="fa-solid fa-chart-pie mr-3"></i> Dashboard</a>
-                <a href="#" onclick="switchPage('Employees', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-users mr-3"></i> Employees</a>
-                <a href="#" onclick="switchPage('Attendance', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-calendar-days mr-3"></i> Attendance</a>
-                <a href="#" onclick="switchPage('Reports', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-file-invoice-dollar mr-3"></i> Reports</a>
-                <a href="#" onclick="switchPage('Settings', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-gear mr-3"></i> Settings</a>
+                <a href="#" data-permission="employees.view" onclick="switchPage('Employees', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-users mr-3"></i> Employees</a>
+                <a href="#" data-permission="attendance.view" onclick="switchPage('Attendance', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-calendar-days mr-3"></i> Attendance</a>
+                <a href="#" data-permission="reports.view" onclick="switchPage('Reports', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-file-invoice-dollar mr-3"></i> Reports</a>
+                <a href="#" data-permission="settings.view,users.view,roles.view" onclick="switchPage('Settings', this)" class="menu-item flex items-center px-4 py-2.5 text-indigo-200 hover:bg-indigo-800 rounded-lg transition"><i class="fa-solid fa-gear mr-3"></i> Settings</a>
             </nav>
             <div class="p-4 bg-indigo-950">
                 <div class="flex items-center justify-between">
@@ -182,13 +182,14 @@
                 <!-- ==================== PAGE 2: EMPLOYEE CARDS PAGE ==================== -->
                 <div id="page-Employees" class="page-content hidden">
                     <div class="flex items-center justify-between gap-4 mb-6">
-                        <div class="flex items-center space-x-2 w-full max-w-md relative">
-                            <div class="relative flex-1">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-2 w-full max-w-2xl relative">
+                            <div class="relative flex-1 min-w-0">
                                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
                                     <i class="fa-solid fa-magnifying-glass"></i>
                                 </span>
                                 <input type="text" id="searchInput" oninput="onEmployeeSearch()" placeholder="Search employee..." class="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             </div>
+                            <div class="flex items-center gap-2 shrink-0">
                             <button onclick="openAddModal()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center space-x-1.5 transition text-xs font-semibold shadow-sm shrink-0" title="Add Employee">
                                 <i class="fa-solid fa-user-plus text-xs"></i><span class="hidden sm:inline">Add Employee</span>
                             </button>
@@ -236,6 +237,7 @@
                                         </label>
                                     </div>
                                 </div>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -592,22 +594,25 @@
                     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
                         <!-- Navigation Tabs -->
                         <div class="border-b border-gray-100 bg-gray-50 px-4 pt-3 flex space-x-2 overflow-x-auto">
-                            <button onclick="switchSettingsTab('Branch', this)" class="settings-tab-btn border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                            <button data-permission="settings.view" onclick="switchSettingsTab('Branch', this)" class="settings-tab-btn border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-code-branch"></i><span>Branch</span>
                             </button>
-                            <button onclick="switchSettingsTab('Department', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                            <button data-permission="settings.view" onclick="switchSettingsTab('Department', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-sitemap"></i><span>Department</span>
                             </button>
-                            <button onclick="switchSettingsTab('Shift', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                            <button data-permission="settings.view" onclick="switchSettingsTab('Shift', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-clock"></i><span>Shift Schedule</span>
                             </button>
-                            <button onclick="switchSettingsTab('Salary', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                            <button data-permission="settings.view" onclick="switchSettingsTab('Salary', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-sack-dollar"></i><span>Salary Structure</span>
                             </button>
-                            <button onclick="switchSettingsTab('Users', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
-                                <i class="fa-solid fa-user-shield"></i><span>User & Role Access</span>
+                            <button data-permission="users.view" onclick="switchSettingsTab('Users', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                                <i class="fa-solid fa-user-shield"></i><span>Users</span>
                             </button>
-                            <button onclick="switchSettingsTab('Business', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                            <button data-permission="roles.view" onclick="switchSettingsTab('Roles', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                                <i class="fa-solid fa-user-lock"></i><span>Roles & Permissions</span>
+                            </button>
+                            <button data-permission="settings.view" onclick="switchSettingsTab('Business', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-building"></i><span>Business Info</span>
                             </button>
                         </div>
@@ -708,11 +713,11 @@
                                 </div>
                             </div>
 
-                            <!-- TAB 4: USER & ROLE ACCESS -->
+                            <!-- TAB 4: USER ACCOUNTS -->
                             <div id="setting-tab-Users" class="settings-tab-content hidden">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-base font-bold text-gray-800">User Accounts & Role Permissions</h3>
-                                    <button onclick="openUserModal()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition flex items-center space-x-1.5">
+                                    <h3 class="text-base font-bold text-gray-800">User Accounts</h3>
+                                    <button data-permission="users.manage" onclick="openUserModal()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition flex items-center space-x-1.5">
                                         <i class="fa-solid fa-plus"></i><span>Add System User</span>
                                     </button>
                                 </div>
@@ -725,10 +730,35 @@
                                                 <th class="px-4 py-3">Mobile</th>
                                                 <th class="px-4 py-3">Email</th>
                                                 <th class="px-4 py-3">Role</th>
+                                                <th class="px-4 py-3">Status</th>
                                                 <th class="px-4 py-3 text-right">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="userTableBody" class="divide-y divide-gray-100 text-gray-700"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- TAB ROLES & PERMISSIONS -->
+                            <div id="setting-tab-Roles" class="settings-tab-content hidden">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-base font-bold text-gray-800">Roles & Permissions</h3>
+                                    <button data-permission="roles.manage" onclick="openRoleModal()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition flex items-center space-x-1.5">
+                                        <i class="fa-solid fa-plus"></i><span>Create Role</span>
+                                    </button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left border-collapse text-sm">
+                                        <thead>
+                                            <tr class="bg-gray-50 text-gray-400 uppercase text-[10px] font-bold tracking-wider">
+                                                <th class="px-4 py-3">Role Name</th>
+                                                <th class="px-4 py-3">Description</th>
+                                                <th class="px-4 py-3">Permissions</th>
+                                                <th class="px-4 py-3">Users</th>
+                                                <th class="px-4 py-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="roleTableBody" class="divide-y divide-gray-100 text-gray-700"></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -887,6 +917,43 @@
         </div>
     </div>
 
+    <!-- ROLE CREATE/EDIT MODAL -->
+    <div id="roleModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="bg-indigo-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
+                <h3 id="roleModalTitle" class="font-bold text-lg">Create Role</h3>
+                <button onclick="closeRoleModal()" class="text-indigo-200 hover:text-white focus:outline-none">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="roleForm" onsubmit="handleRoleFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto">
+                <input type="hidden" id="roleEditId">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Role Name</label>
+                    <input type="text" id="roleName" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Description</label>
+                    <input type="text" id="roleDescription" placeholder="Optional" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold text-gray-600 uppercase">Permissions</label>
+                        <div class="space-x-3 text-xs">
+                            <span onclick="setAllRolePermissions(true)" class="text-indigo-600 font-semibold cursor-pointer hover:underline">Select All</span>
+                            <span onclick="setAllRolePermissions(false)" class="text-gray-400 font-semibold cursor-pointer hover:underline">Clear All</span>
+                        </div>
+                    </div>
+                    <div id="rolePermissionsContainer" class="space-y-4 border border-gray-100 rounded-lg p-3 bg-gray-50"></div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-3 border-t border-gray-100 shrink-0">
+                    <button type="button" onclick="closeRoleModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">Save Role</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- BULK EMPLOYEE UPLOAD MODAL -->
     <div id="bulkEmployeeModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
@@ -1035,9 +1102,6 @@
                 { id: 2, name: "House Rent Allowance", type: "Earning", calcType: "Percentage", value: 20 },
                 { id: 3, name: "Provident Fund", type: "Deduction", calcType: "Percentage", value: 12 }
             ],
-            users: [
-                { id: 1, name: "Admin User", email: "admin@attendash.com", role: "HR Manager" }
-            ],
             business: {
                 name: "AttenDash Enterprises",
                 phone: "+91 79 1234 5678",
@@ -1045,6 +1109,33 @@
                 address: "402 Corporate Park, SG Highway, Ahmedabad, Gujarat - 380015"
             }
         };
+
+        // System user accounts, roles, and the permission catalog live entirely server-side
+        // in Prisma (src/prisma.js) — these are just an in-memory cache of /api/users,
+        // /api/roles, and /api/permissions for rendering the Settings > Users/Roles tabs.
+        let systemUsers = [];
+        let systemRoles = [];
+        let systemPermissions = [];
+        let rbacDataLoaded = false;
+
+        async function loadRbacData(force = false) {
+            if (rbacDataLoaded && !force) return;
+            try {
+                const [usersRes, rolesRes, permissionsRes] = await Promise.all([
+                    fetch('/api/users'),
+                    fetch('/api/roles'),
+                    fetch('/api/permissions')
+                ]);
+                if (usersRes.ok) systemUsers = await usersRes.json();
+                if (rolesRes.ok) systemRoles = await rolesRes.json();
+                if (permissionsRes.ok) systemPermissions = await permissionsRes.json();
+                rbacDataLoaded = true;
+                renderUsersTable();
+                renderRolesTable();
+            } catch (error) {
+                console.error('Unable to load users/roles/permissions', error);
+            }
+        }
 
         function saveLocalState() {
             try {
@@ -1128,7 +1219,6 @@
                             ...settingsData.departments.map(d => ({ id: d.id, category: 'department', name: d.name, values: { head: d.head, branchCode: d.branchCode } })),
                             ...settingsData.shifts.map(s => ({ id: s.id, category: 'shift', name: s.title, values: { start: s.start, end: s.end, hours: s.hours, graceMinutes: s.graceMinutes } })),
                             ...settingsData.salaryComponents.map(c => ({ id: c.id, category: 'salaryComponent', name: c.name, values: { type: c.type, calcType: c.calcType, value: c.value } })),
-                            ...settingsData.users.map(u => ({ id: u.id, category: 'user', name: u.name, values: { username: u.username, phone: u.phone, email: u.email, role: u.role } })),
                             { category: 'business', name: settingsData.business?.name || 'AttenDash', values: settingsData.business }
                         ]
                     })
@@ -1198,13 +1288,34 @@
             }
             if (user) {
                 document.getElementById('sessionUserName').innerText = user.name || user.username || 'Admin User';
-                document.getElementById('sessionUserRole').innerText = user.role || 'HR Manager';
+                document.getElementById('sessionUserRole').innerText = (user.role && user.role.name) || 'User';
+                applyPermissions(user);
             }
             try {
                 initApp();
             } catch (err) {
                 console.error('Error initializing app:', err);
             }
+        }
+
+        // req.currentUser.permissions is the real enforcement boundary (checked server-side
+        // on every request via authorize() in src/server.js) — this only controls what's
+        // shown, matching the existing app's `.hidden`-toggling idiom used everywhere else.
+        function hasPermission(requiredKeys) {
+            if (!requiredKeys) return true;
+            const perms = (window.currentUser && Array.isArray(window.currentUser.permissions)) ? window.currentUser.permissions : [];
+            return requiredKeys.split(',').some(key => perms.includes(key.trim()));
+        }
+
+        function applyPermissions(user) {
+            window.currentUser = user;
+            document.querySelectorAll('[data-permission]').forEach(el => {
+                if (hasPermission(el.dataset.permission)) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
         }
 
         function showLogin() {
@@ -1353,9 +1464,8 @@
 
         async function loadSettingsFromDatabase() {
             try {
-                const hasLocalSettings = (settingsData.branches && settingsData.branches.length > 0) || 
-                                         (settingsData.departments && settingsData.departments.length > 0) || 
-                                         (settingsData.users && settingsData.users.length > 0);
+                const hasLocalSettings = (settingsData.branches && settingsData.branches.length > 0) ||
+                                         (settingsData.departments && settingsData.departments.length > 0);
                 const response = await fetch('/api/settings');
                 if (!response.ok) return;
                 const records = await response.json();
@@ -1364,14 +1474,12 @@
                     settingsData.departments = [];
                     settingsData.shifts = [];
                     settingsData.salaryComponents = [];
-                    settingsData.users = [];
                     records.forEach(record => {
                         const values = record.values || {};
                         if (record.category === 'branch') settingsData.branches.push({ id: record.id, name: record.name, code: values.code || '', location: values.location || '' });
                         else if (record.category === 'department') settingsData.departments.push({ id: record.id, name: record.name, head: values.head || '', branchCode: values.branchCode || '' });
                         else if (record.category === 'shift') settingsData.shifts.push({ id: record.id, title: record.name, start: values.start || '', end: values.end || '', hours: values.hours || '', graceMinutes: values.graceMinutes || 0 });
                         else if (record.category === 'salaryComponent') settingsData.salaryComponents.push({ id: record.id, name: record.name, type: values.type || 'Earning', calcType: values.calcType || 'Fixed', value: values.value || 0 });
-                        else if (record.category === 'user') settingsData.users.push({ id: record.id, name: record.name, username: values.username || '', phone: values.phone || '', email: values.email || '', role: values.role || '' });
                         else if (record.category === 'business') settingsData.business = { name: record.name, ...values };
                     });
                     saveLocalState();
@@ -1562,12 +1670,12 @@
                                 <thead>
                                     <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider">
                                         <th class="px-4 py-3 text-left font-semibold">Employee</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Code</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Branch</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Department</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Shift</th>
+                                        <th class="hidden sm:table-cell px-4 py-3 text-left font-semibold">Code</th>
+                                        <th class="hidden sm:table-cell px-4 py-3 text-left font-semibold">Branch</th>
+                                        <th class="hidden md:table-cell px-4 py-3 text-left font-semibold">Department</th>
+                                        <th class="hidden md:table-cell px-4 py-3 text-left font-semibold">Shift</th>
                                         <th class="px-4 py-3 text-left font-semibold">Status</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Phone</th>
+                                        <th class="hidden sm:table-cell px-4 py-3 text-left font-semibold">Phone</th>
                                         <th class="px-4 py-3 text-center font-semibold">Actions</th>
                                     </tr>
                                 </thead>
@@ -1585,12 +1693,12 @@
                                     <span class="font-semibold text-gray-800 truncate">${emp.name}</span>
                                 </div>
                             </td>
-                            <td class="px-4 py-3"><span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-mono font-bold rounded">${emp.empCode || ('EMP-' + String(emp.id).slice(-3))}</span></td>
-                            <td class="px-4 py-3 text-xs text-indigo-700 font-semibold">${getBranchLabel(emp.branchCode)}</td>
-                            <td class="px-4 py-3 text-xs text-indigo-600 font-medium">${emp.dept}</td>
-                            <td class="px-4 py-3 text-xs text-gray-600">${emp.shift}</td>
+                            <td class="hidden sm:table-cell px-4 py-3"><span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-mono font-bold rounded">${emp.empCode || ('EMP-' + String(emp.id).slice(-3))}</span></td>
+                            <td class="hidden sm:table-cell px-4 py-3 text-xs text-indigo-700 font-semibold">${getBranchLabel(emp.branchCode)}</td>
+                            <td class="hidden md:table-cell px-4 py-3 text-xs text-indigo-600 font-medium">${emp.dept}</td>
+                            <td class="hidden md:table-cell px-4 py-3 text-xs text-gray-600">${emp.shift}</td>
                             <td class="px-4 py-3"><span class="px-2 py-0.5 ${badgeColor} rounded text-[10px] font-semibold">${todayStatus}</span></td>
-                            <td class="px-4 py-3 text-xs text-gray-600">${emp.phone || '-'}</td>
+                            <td class="hidden sm:table-cell px-4 py-3 text-xs text-gray-600">${emp.phone || '-'}</td>
                             <td class="px-4 py-3 text-center" onclick="event.stopPropagation()">
                                 <div class="flex items-center justify-center space-x-1">
                                     <a href="tel:${emp.phone}" class="w-7 h-7 rounded-full bg-gray-50 text-gray-600 hover:bg-green-50 hover:text-green-600 flex items-center justify-center transition" title="Call"><i class="fa-solid fa-phone text-[10px]"></i></a>
@@ -1997,10 +2105,10 @@
                                 <thead>
                                     <tr class="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider">
                                         <th class="px-4 py-3 text-left font-semibold">Employee</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Code</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Branch</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Dept</th>
-                                        <th class="px-4 py-3 text-left font-semibold">Shift</th>
+                                        <th class="hidden sm:table-cell px-4 py-3 text-left font-semibold">Code</th>
+                                        <th class="hidden sm:table-cell px-4 py-3 text-left font-semibold">Branch</th>
+                                        <th class="hidden md:table-cell px-4 py-3 text-left font-semibold">Dept</th>
+                                        <th class="hidden md:table-cell px-4 py-3 text-left font-semibold">Shift</th>
                                         <th class="px-4 py-3 text-center font-semibold">Status</th>
                                     </tr>
                                 </thead>
@@ -2019,10 +2127,10 @@
                                     <span class="font-semibold text-gray-800 truncate hover:text-indigo-600">${emp.name}</span>
                                 </div>
                             </td>
-                            <td class="px-4 py-3"><span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-mono font-bold rounded">${emp.empCode || ('EMP-' + String(emp.id).slice(-3))}</span></td>
-                            <td class="px-4 py-3 text-xs text-indigo-700 font-semibold">${getBranchLabel(emp.branchCode)}</td>
-                            <td class="px-4 py-3 text-xs text-indigo-600 font-medium">${emp.dept}</td>
-                            <td class="px-4 py-3 text-xs text-gray-600">${emp.shift}</td>
+                            <td class="hidden sm:table-cell px-4 py-3"><span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-mono font-bold rounded">${emp.empCode || ('EMP-' + String(emp.id).slice(-3))}</span></td>
+                            <td class="hidden sm:table-cell px-4 py-3 text-xs text-indigo-700 font-semibold">${getBranchLabel(emp.branchCode)}</td>
+                            <td class="hidden md:table-cell px-4 py-3 text-xs text-indigo-600 font-medium">${emp.dept}</td>
+                            <td class="hidden md:table-cell px-4 py-3 text-xs text-gray-600">${emp.shift}</td>
                             <td class="px-4 py-3 text-center">
                                 <select onchange="updateAttendanceStatus('${emp.id}', '${dateVal}', this.value)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition ${selectColor}" ${currentStatus === 'Present' ? 'disabled' : ''}>
                                     <option value="Present" ${currentStatus === 'Present' ? 'selected' : ''}>Present</option>
@@ -2600,6 +2708,10 @@
         sidebarBackdrop.addEventListener('click', toggleSidebar);
 
         function switchPage(pageName, element) {
+            // Defense in depth: the real boundary is the server-side authorize() check on
+            // each API call — this just stops a hidden nav item from being reachable via
+            // devtools/direct function call.
+            if (element && element.dataset.permission && !hasPermission(element.dataset.permission)) return;
             if (pageName === 'Dashboard') pageTitle.innerText = 'Dashboard Overview';
             else if (pageName === 'Employees') pageTitle.innerText = 'Employees Directory';
             else if (pageName === 'Attendance') pageTitle.innerText = 'Attendance Management Log';
@@ -2643,6 +2755,9 @@
 
         /* SETTINGS TAB FUNCTIONS */
         function switchSettingsTab(tabName, btnElement) {
+            if (btnElement && btnElement.dataset.permission && !hasPermission(btnElement.dataset.permission)) return;
+            if (tabName === 'Users') loadRbacData();
+            if (tabName === 'Roles') loadRbacData();
             document.querySelectorAll('.settings-tab-btn').forEach(btn => {
                 btn.classList.remove('border-indigo-600', 'text-indigo-600', 'font-semibold');
                 btn.classList.add('border-transparent', 'text-gray-500', 'font-medium');
@@ -2716,21 +2831,46 @@
                 </tr>
             `).join('');
 
-            // Render Users
+        }
+
+        function renderUsersTable() {
             const userBody = document.getElementById('userTableBody');
-            userBody.innerHTML = settingsData.users.map(u => `
+            if (!userBody) return;
+            userBody.innerHTML = systemUsers.map(u => `
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-2.5 font-medium text-gray-800">${u.name}</td>
-                    <td class="px-4 py-2.5 text-xs text-gray-700 font-mono font-semibold">${u.username || '-'}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-700 font-mono font-semibold">${u.username}</td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${u.phone || '-'}</td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${u.email || '-'}</td>
-                    <td class="px-4 py-2.5 text-xs text-indigo-600 font-semibold">${u.role || '-'}</td>
+                    <td class="px-4 py-2.5 text-xs text-indigo-600 font-semibold">${u.role.name}</td>
+                    <td class="px-4 py-2.5 text-xs">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">${u.isActive ? 'Active' : 'Disabled'}</span>
+                    </td>
                     <td class="px-4 py-2.5 text-right space-x-2">
-                        <button onclick="openUserModal(${u.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit User"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteSettingsItem('users', ${u.id})" class="text-red-600 hover:text-red-900" title="Delete User"><i class="fa-solid fa-trash"></i></button>
+                        <button data-permission="users.manage" onclick="openUserModal(${u.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit User"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button data-permission="users.manage" onclick="deleteSystemUser(${u.id})" class="text-red-600 hover:text-red-900" title="Delete User"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
+            applyPermissions(window.currentUser);
+        }
+
+        function renderRolesTable() {
+            const roleBody = document.getElementById('roleTableBody');
+            if (!roleBody) return;
+            roleBody.innerHTML = systemRoles.map(r => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2.5 font-medium text-gray-800">${r.name}${r.isSystem ? ' <span class="text-[10px] text-gray-400 font-normal">(default)</span>' : ''}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${r.description || '-'}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${r.permissions.length} permission${r.permissions.length === 1 ? '' : 's'}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${r.userCount}</td>
+                    <td class="px-4 py-2.5 text-right space-x-2">
+                        <button data-permission="roles.manage" onclick="openRoleModal(${r.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit Role"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button data-permission="roles.manage" onclick="deleteRole(${r.id})" class="text-red-600 hover:text-red-900 ${r.isSystem || r.userCount > 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="${r.isSystem ? 'Default roles cannot be deleted' : (r.userCount > 0 ? 'Reassign users before deleting' : 'Delete Role')}" ${r.isSystem || r.userCount > 0 ? 'disabled' : ''}><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+            applyPermissions(window.currentUser);
         }
 
         function loadBusinessData() {
@@ -2893,10 +3033,11 @@
         }
 
         function openUserModal(id = null) {
-            const item = id ? settingsData.users.find(u => u.id === id) : null;
-            document.getElementById('settingsModalTitle').innerText = id ? 'Edit User Access' : 'Add System User';
+            const item = id ? systemUsers.find(u => u.id === id) : null;
+            document.getElementById('settingsModalTitle').innerText = id ? 'Edit System User' : 'Add System User';
             document.getElementById('settingsItemType').value = 'users';
             document.getElementById('settingsEditId').value = id || '';
+            const roleOptions = systemRoles.map(r => `<option value="${r.id}" ${item && item.role.id === r.id ? 'selected' : ''}>${r.name}</option>`).join('');
             document.getElementById('settingsFieldsContainer').innerHTML = `
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">User Name (Full Name)</label>
@@ -2904,38 +3045,95 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Username (Login ID)</label>
-                    <input type="text" id="set_username" required value="${item ? (item.username || '') : ''}" placeholder="e.g. rahul" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_username" required ${item ? 'readonly class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500"' : 'class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"'} value="${item ? (item.username || '') : ''}" placeholder="e.g. rahul">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Password ${item ? '<span class="text-gray-400 font-normal lowercase">(leave blank to keep current)</span>' : ''}</label>
-                    <input type="password" id="set_password" ${item ? '' : 'required'} autocomplete="new-password" placeholder="${item ? '••••••••' : 'Enter password'}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="password" id="set_password" ${item ? '' : 'required'} minlength="6" autocomplete="new-password" placeholder="${item ? '••••••••' : 'At least 6 characters'}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Mobile Number</label>
-                    <input type="tel" id="set_phone" required value="${item ? (item.phone || '') : ''}" placeholder="+91 98765 43210" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="tel" id="set_phone" value="${item ? (item.phone || '') : ''}" placeholder="+91 98765 43210" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Email Address</label>
-                    <input type="email" id="set_email" required value="${item ? (item.email || '') : ''}" placeholder="e.g. rahul@example.com" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="email" id="set_email" value="${item ? (item.email || '') : ''}" placeholder="e.g. rahul@example.com" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Role</label>
-                    <select id="set_role" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                        <option value="Admin" ${item && item.role === 'Admin' ? 'selected' : ''}>Admin</option>
-                        <option value="HR Manager" ${item && item.role === 'HR Manager' ? 'selected' : ''}>HR Manager</option>
-                        <option value="Supervisor" ${item && item.role === 'Supervisor' ? 'selected' : ''}>Supervisor</option>
+                    <select id="set_role" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                        ${roleOptions}
                     </select>
                 </div>
+                ${item ? `<div>
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="set_active" ${item.isActive ? 'checked' : ''} class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <span class="text-xs font-semibold text-gray-600">Account Active</span>
+                    </label>
+                </div>` : ''}
             `;
             const modal = document.getElementById('settingsModal');
             modal.classList.remove('hidden');
             modal.style.display = 'flex';
         }
 
+        async function handleUserFormSubmit(editId) {
+            const payload = {
+                name: document.getElementById('set_name').value,
+                email: document.getElementById('set_email').value,
+                phone: document.getElementById('set_phone').value,
+                roleId: Number(document.getElementById('set_role').value),
+            };
+            const password = document.getElementById('set_password').value;
+            if (password) payload.password = password;
+            if (!editId) payload.username = document.getElementById('set_username').value;
+            const activeCheckbox = document.getElementById('set_active');
+            if (activeCheckbox) payload.isActive = activeCheckbox.checked;
+
+            const response = await fetch(editId ? `/api/users/${editId}` : '/api/users', {
+                method: editId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                let message = 'Failed to save user';
+                try { message = (await response.json()).error || message; } catch (error) { /* keep generic message */ }
+                throw new Error(message);
+            }
+            await loadRbacData(true);
+        }
+
+        async function deleteSystemUser(id) {
+            if (!confirm('Remove this system user? They will no longer be able to log in.')) return;
+            try {
+                const response = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to delete user');
+                }
+                await loadRbacData(true);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
         async function handleSettingsFormSubmit(e) {
             e.preventDefault();
             const type = document.getElementById('settingsItemType').value;
             const editId = document.getElementById('settingsEditId').value;
+
+            // System user accounts are Prisma-backed (/api/users), not part of the generic
+            // settings collection — handled separately from the branch/department/etc. flow below.
+            if (type === 'users') {
+                try {
+                    await handleUserFormSubmit(editId);
+                } catch (error) {
+                    return alert(error.message);
+                }
+                closeSettingsModal();
+                return;
+            }
+
             let category = type;
             let name = '';
             let values = {};
@@ -2987,31 +3185,6 @@
                 } else {
                     settingsData.salaryComponents.push({ id: Date.now(), name, type: compType, calcType, value });
                 }
-            } else if (type === 'users') {
-                name = document.getElementById('set_name').value;
-                const username = document.getElementById('set_username').value;
-                const passwordInput = document.getElementById('set_password');
-                const password = passwordInput ? passwordInput.value : '';
-                const phone = document.getElementById('set_phone').value;
-                const email = document.getElementById('set_email').value;
-                const role = document.getElementById('set_role').value;
-                category = 'user';
-                values = { username, phone, email, role };
-                if (password) {
-                    values.password = password;
-                }
-                if (editId) {
-                    const item = settingsData.users.find(u => u.id == editId);
-                    if (item) {
-                        item.name = name;
-                        item.username = username;
-                        item.phone = phone;
-                        item.email = email;
-                        item.role = role;
-                    }
-                } else {
-                    settingsData.users.push({ id: Date.now(), name, username, phone, email, role });
-                }
             }
 
             saveLocalState();
@@ -3041,6 +3214,104 @@
                 saveLocalState();
                 debouncedSyncLocalToServer();
                 renderSettingsTables();
+            }
+        }
+
+        /* ==================== ROLE / PERMISSION MANAGEMENT ==================== */
+        const PERMISSION_MODULE_LABELS = {
+            branches: 'Branches', departments: 'Departments', employees: 'Employees',
+            transfers: 'Transfers', attendance: 'Attendance', payroll: 'Payroll',
+            reports: 'Reports', expenses: 'Expenses', settings: 'Settings',
+            users: 'Users', roles: 'Roles',
+        };
+
+        function renderRolePermissionsChecklist(selectedKeys) {
+            const selected = new Set(selectedKeys || []);
+            const byModule = {};
+            systemPermissions.forEach(p => {
+                if (!byModule[p.module]) byModule[p.module] = [];
+                byModule[p.module].push(p);
+            });
+            const container = document.getElementById('rolePermissionsContainer');
+            container.innerHTML = Object.keys(byModule).sort().map(module => `
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1.5">${PERMISSION_MODULE_LABELS[module] || module}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        ${byModule[module].map(p => `
+                            <label class="flex items-center space-x-2 px-2 py-1 hover:bg-white rounded cursor-pointer">
+                                <input type="checkbox" class="role-permission-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4" value="${p.key}" ${selected.has(p.key) ? 'checked' : ''}>
+                                <span class="text-xs text-gray-700">${p.label}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setAllRolePermissions(checked) {
+            document.querySelectorAll('.role-permission-checkbox').forEach(cb => { cb.checked = checked; });
+        }
+
+        async function openRoleModal(id = null) {
+            await loadRbacData();
+            const item = id ? systemRoles.find(r => r.id === id) : null;
+            document.getElementById('roleModalTitle').innerText = id ? 'Edit Role' : 'Create Role';
+            document.getElementById('roleEditId').value = id || '';
+            const nameInput = document.getElementById('roleName');
+            nameInput.value = item ? item.name : '';
+            nameInput.readOnly = !!(item && item.isSystem);
+            nameInput.classList.toggle('bg-gray-50', !!(item && item.isSystem));
+            nameInput.classList.toggle('text-gray-500', !!(item && item.isSystem));
+            document.getElementById('roleDescription').value = item ? (item.description || '') : '';
+            renderRolePermissionsChecklist(item ? item.permissions : []);
+            const modal = document.getElementById('roleModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function closeRoleModal() {
+            const modal = document.getElementById('roleModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+
+        async function handleRoleFormSubmit(e) {
+            e.preventDefault();
+            const editId = document.getElementById('roleEditId').value;
+            const permissions = Array.from(document.querySelectorAll('.role-permission-checkbox:checked')).map(cb => cb.value);
+            const payload = {
+                name: document.getElementById('roleName').value,
+                description: document.getElementById('roleDescription').value,
+                permissions,
+            };
+            try {
+                const response = await fetch(editId ? `/api/roles/${editId}` : '/api/roles', {
+                    method: editId ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to save role');
+                }
+                await loadRbacData(true);
+                closeRoleModal();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function deleteRole(id) {
+            if (!confirm('Delete this role?')) return;
+            try {
+                const response = await fetch(`/api/roles/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to delete role');
+                }
+                await loadRbacData(true);
+            } catch (error) {
+                alert(error.message);
             }
         }
 

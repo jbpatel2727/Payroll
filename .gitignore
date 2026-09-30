@@ -10,3 +10,4 @@ Thumbs.db
 .env*
 src/data.json
 src/payroll.sqlite
+prisma/dev.db
