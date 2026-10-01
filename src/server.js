@@ -224,6 +224,13 @@ function authorize(permissionKey) {
   };
 }
 
+// User/Role/Permission ids are MongoDB ObjectIds (24 hex chars), not numbers — reject
+// malformed ids with a 400 here rather than letting Prisma throw and fall through to
+// the generic 500 handler.
+function isValidObjectId(id) {
+  return typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+}
+
 // Express 4 does not catch rejected promises thrown by async route handlers — an
 // unhandled one would crash the whole process. Every async handler in this file
 // (Prisma-backed routes) is wrapped with this so failures become a clean 500 instead.
@@ -960,7 +967,8 @@ app.post('/api/roles', authorize('roles.manage'), asyncHandler(async (req, res) 
 }));
 
 app.put('/api/roles/:id', authorize('roles.manage'), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
+  if (!isValidObjectId(id)) return res.status(400).json({ error: 'Invalid role id' });
   const { name, description, permissions } = req.body || {};
   const role = await prisma.role.findUnique({ where: { id } });
   if (!role) return res.status(404).json({ error: 'Role not found' });
@@ -994,7 +1002,8 @@ app.put('/api/roles/:id', authorize('roles.manage'), asyncHandler(async (req, re
 }));
 
 app.delete('/api/roles/:id', authorize('roles.manage'), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
+  if (!isValidObjectId(id)) return res.status(400).json({ error: 'Invalid role id' });
   const role = await prisma.role.findUnique({ where: { id }, include: { _count: { select: { users: true } } } });
   if (!role) return res.status(404).json({ error: 'Role not found' });
   if (role.isSystem) return res.status(400).json({ error: 'Default system roles cannot be deleted.' });
@@ -1026,7 +1035,8 @@ app.post('/api/users', authorize('users.manage'), asyncHandler(async (req, res) 
     return res.status(400).json({ error: 'Username, password, name, and role are required' });
   }
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  const role = await prisma.role.findUnique({ where: { id: Number(roleId) } });
+  if (!isValidObjectId(roleId)) return res.status(400).json({ error: 'Invalid role' });
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
   if (!role) return res.status(400).json({ error: 'Invalid role' });
   const cleanUsername = String(username).trim().toLowerCase().replace(/\s+/g, '');
   try {
@@ -1049,7 +1059,8 @@ app.post('/api/users', authorize('users.manage'), asyncHandler(async (req, res) 
 }));
 
 app.put('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
+  if (!isValidObjectId(id)) return res.status(400).json({ error: 'Invalid user id' });
   const { name, email, phone, roleId, isActive, password } = req.body || {};
   const data = {};
   if (name !== undefined) data.name = String(name).trim();
@@ -1057,7 +1068,8 @@ app.put('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, re
   if (phone !== undefined) data.phone = phone || null;
   if (isActive !== undefined) data.isActive = Boolean(isActive);
   if (roleId !== undefined) {
-    const role = await prisma.role.findUnique({ where: { id: Number(roleId) } });
+    if (!isValidObjectId(roleId)) return res.status(400).json({ error: 'Invalid role' });
+    const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return res.status(400).json({ error: 'Invalid role' });
     data.roleId = role.id;
   }
@@ -1075,7 +1087,8 @@ app.put('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, re
 }));
 
 app.delete('/api/users/:id', authorize('users.manage'), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
+  const id = req.params.id;
+  if (!isValidObjectId(id)) return res.status(400).json({ error: 'Invalid user id' });
   if (id === req.userId) return res.status(400).json({ error: 'You cannot delete your own account.' });
   const user = await prisma.user.findUnique({ where: { id }, include: { role: true } });
   if (!user) return res.status(404).json({ error: 'User not found' });

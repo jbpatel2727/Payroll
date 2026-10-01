@@ -3,21 +3,20 @@
   "version": "1.0.0",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "npx nodemon src/server.js"
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "npx nodemon --env-file-if-exists=.env src/server.js"
   },
   "engines": {
     "node": ">=22.5.0"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
-    "@prisma/adapter-libsql": "^7.10.0",
-    "@prisma/client": "7.10.0",
+    "@prisma/client": "6.19.3",
     "express": "^4.18.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.0",
-    "prisma": "7.10.0"
+    "prisma": "6.19.3"
   },
   "description": "",
   "keywords": [],
@@ -25,7 +24,8 @@
   "license": "ISC",
   "type": "commonjs",
   "allowScripts": {
-    "@prisma/engines@7.10.0": true,
-    "prisma@7.10.0": true
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true
   }
 }

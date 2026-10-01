@@ -3,114 +3,16 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
-model Branch {
-  id          Int          @id @default(autoincrement())
-  name        String
-  code        String       @unique
-  address     String?
-  departments Department[]
-  employees   Employee[] @relation("EmployeeBranch")
-  transfersFrom Transfer[] @relation("SourceBranch")
-  transfersTo   Transfer[] @relation("TargetBranch")
-}
-
-model Department {
-  id         Int        @id @default(autoincrement())
-  name       String
-  branchCode String
-  branch     Branch     @relation(fields: [branchCode], references: [code])
-  employees  Employee[] @relation("EmployeeDepartment")
-  @@unique([name, branchCode])
-}
-
-model Employee {
-  id         Int          @id @default(autoincrement())
-  name       String
-  email      String       @unique
-  designation String?
-  baseSalary Float
-  allowanceStructure Json?
-  dateOfJoining String?
-  relievingDate String?
-  branchCode String
-  deptName   String
-  branch     Branch     @relation("EmployeeBranch", fields: [branchCode], references: [code])
-  department Department @relation("EmployeeDepartment", fields: [deptName, branchCode], references: [name, branchCode])
-  attendance Attendance[]
-  transfers Transfer[]
-}
-
-model Attendance {
-  id             Int      @id @default(autoincrement())
-  employeeId     Int
-  date           String
-  status         String
-  daysWorked    Float    @default(0)
-  overtimeHours Float    @default(0)
-  unpaidLeave   Float    @default(0)
-  paidLeave     Float    @default(0)
-  gazettedHoliday Float  @default(0)
-  branchCode    String
-  deptName      String
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-}
-
-model Transfer {
-  id                  Int      @id @default(autoincrement())
-  employeeId          Int
-  sourceBranchCode    String
-  targetBranchCode    String
-  effectiveDate       String
-  department          String?
-  relocationAllowance Float    @default(0)
-  salaryRevision      Float    @default(0)
-  status              String   @default("Approved")
-  employee            Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  sourceBranch        Branch   @relation("SourceBranch", fields: [sourceBranchCode], references: [code])
-  targetBranch        Branch   @relation("TargetBranch", fields: [targetBranchCode], references: [code])
-}
-
-model PayrollRun {
-  id          Int      @id @default(autoincrement())
-  month       String   @unique
-  workingDays Int
-  generatedAt DateTime @default(now())
-  exceptions  Json?
-}
-
-model PayrollRecord {
-  id                    Int      @id @default(autoincrement())
-  runMonth              String
-  employeeId            Int
-  sourceBranch          String
-  targetBranch          String
-  transferDate          String?
-  daysSource            Float    @default(0)
-  daysTarget            Float    @default(0)
-  lopDays               Float    @default(0)
-  grossPay              Float    @default(0)
-  deductions            Float    @default(0)
-  netPay                Float    @default(0)
-  overtimeHours         Float    @default(0)
-  overtimePay           Float    @default(0)
-  relocationAllowance   Float    @default(0)
-  salaryRevision        Float    @default(0)
-}
-
-model Setting {
-  id        Int      @id @default(autoincrement())
-  category  String
-  name      String
-  values    Json?
-  createdAt DateTime @default(now())
-  @@index([category])
-}
+// Users/Roles/Permissions (Phase 1 RBAC) are the only data modeled here.
+// Employees/attendance/payroll/branches/departments remain on the existing
+// JSON-blob store (src/database.js) — out of scope for this phase.
 
 model Permission {
-  id      Int              @id @default(autoincrement())
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
   key     String           @unique
   module  String
   label   String
@@ -118,7 +20,7 @@ model Permission {
 }
 
 model Role {
-  id          Int              @id @default(autoincrement())
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
   name        String           @unique
   description String?
   isSystem    Boolean          @default(false)
@@ -129,21 +31,22 @@ model Role {
 }
 
 model RolePermission {
-  roleId       Int
-  permissionId Int
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  roleId       String     @db.ObjectId
+  permissionId String     @db.ObjectId
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  @@id([roleId, permissionId])
+  @@unique([roleId, permissionId])
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   username     String   @unique
   passwordHash String
   name         String
   email        String?
   phone        String?
-  roleId       Int
+  roleId       String   @db.ObjectId
   role         Role     @relation(fields: [roleId], references: [id])
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())

@@ -2847,8 +2847,8 @@
                         <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}">${u.isActive ? 'Active' : 'Disabled'}</span>
                     </td>
                     <td class="px-4 py-2.5 text-right space-x-2">
-                        <button data-permission="users.manage" onclick="openUserModal(${u.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit User"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button data-permission="users.manage" onclick="deleteSystemUser(${u.id})" class="text-red-600 hover:text-red-900" title="Delete User"><i class="fa-solid fa-trash"></i></button>
+                        <button data-permission="users.manage" onclick="openUserModal('${u.id}')" class="text-indigo-600 hover:text-indigo-900" title="Edit User"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button data-permission="users.manage" onclick="deleteSystemUser('${u.id}')" class="text-red-600 hover:text-red-900" title="Delete User"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -2865,8 +2865,8 @@
                     <td class="px-4 py-2.5 text-xs text-gray-500">${r.permissions.length} permission${r.permissions.length === 1 ? '' : 's'}</td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${r.userCount}</td>
                     <td class="px-4 py-2.5 text-right space-x-2">
-                        <button data-permission="roles.manage" onclick="openRoleModal(${r.id})" class="text-indigo-600 hover:text-indigo-900" title="Edit Role"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button data-permission="roles.manage" onclick="deleteRole(${r.id})" class="text-red-600 hover:text-red-900 ${r.isSystem || r.userCount > 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="${r.isSystem ? 'Default roles cannot be deleted' : (r.userCount > 0 ? 'Reassign users before deleting' : 'Delete Role')}" ${r.isSystem || r.userCount > 0 ? 'disabled' : ''}><i class="fa-solid fa-trash"></i></button>
+                        <button data-permission="roles.manage" onclick="openRoleModal('${r.id}')" class="text-indigo-600 hover:text-indigo-900" title="Edit Role"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button data-permission="roles.manage" onclick="deleteRole('${r.id}')" class="text-red-600 hover:text-red-900 ${r.isSystem || r.userCount > 0 ? 'opacity-30 cursor-not-allowed' : ''}" title="${r.isSystem ? 'Default roles cannot be deleted' : (r.userCount > 0 ? 'Reassign users before deleting' : 'Delete Role')}" ${r.isSystem || r.userCount > 0 ? 'disabled' : ''}><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -3082,7 +3082,7 @@
                 name: document.getElementById('set_name').value,
                 email: document.getElementById('set_email').value,
                 phone: document.getElementById('set_phone').value,
-                roleId: Number(document.getElementById('set_role').value),
+                roleId: document.getElementById('set_role').value,
             };
             const password = document.getElementById('set_password').value;
             if (password) payload.password = password;
