@@ -52,3 +52,133 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// --- Business data (employees, attendance, payroll, branches, departments) ---
+// These mirror the loosely-typed shape the app has always used (previously a JSON
+// blob in src/database.js) rather than a normalized relational model — branchCode/
+// deptName/empId are plain string references, not Prisma relations, matching the
+// existing string-matching logic throughout src/server.js. IDs are caller-supplied
+// strings (the app's existing Date.now()-based ids), NOT auto-generated ObjectIds,
+// so every existing id-generation/comparison call site keeps working unchanged.
+
+model Branch {
+  id      String  @id @map("_id")
+  name    String?
+  code    String?
+  address String?
+}
+
+model Department {
+  id         String  @id @map("_id")
+  name       String?
+  branchCode String?
+}
+
+model Employee {
+  id                 String  @id @map("_id")
+  empCode            String?
+  name               String?
+  email              String?
+  phone              String?
+  address            String?
+  deptName           String?
+  branchCode         String?
+  salary             Float?
+  baseSalary         Float?
+  profilePhoto       String?
+  workSchedule       Json?
+  allowanceStructure Json?
+  salaryStructure    Json?
+  dateOfJoining      String?
+  relievingDate      String?
+  createdAt          String?
+}
+
+model Attendance {
+  id              String  @id @map("_id")
+  empId           String?
+  empName         String?
+  date            String?
+  status          String?
+  daysWorked      Float?
+  overtimeHours   Float?
+  unpaidLeave     Float?
+  paidLeave       Float?
+  gazettedHoliday Float?
+  branchCode      String?
+  deptName        String?
+}
+
+model Transfer {
+  id                  String  @id @map("_id")
+  employeeId          String?
+  sourceBranch        String?
+  targetBranch        String?
+  effectiveDate       String?
+  relocationAllowance Float?
+  salaryRevision      Float?
+  department          String?
+  status              String?
+  createdAt           String?
+}
+
+model PayrollRecord {
+  id                  String  @id @map("_id")
+  empId               String?
+  empName             String?
+  empCode             String?
+  month               String?
+  sourceBranch        String?
+  targetBranch        String?
+  transferDate        String?
+  daysSource          Float?
+  daysTarget          Float?
+  totalWorkingDays    Float?
+  payableDays         Float?
+  lopDays             Float?
+  baseSalary          Float?
+  sourceGross         Float?
+  targetGross         Float?
+  overtimeHours       Float?
+  overtimePay         Float?
+  relocationAllowance Float?
+  salaryRevision      Float?
+  grossPay            Float?
+  deductions          Float?
+  lopDeduction        Float?
+  statutoryDeductions Float?
+  netPay              Float?
+  netSalary           Float?
+  branchAllocation    Json?
+}
+
+model PayrollRun {
+  id          String  @id @map("_id")
+  month       String?
+  workingDays Float?
+  generatedAt String?
+  exceptions  Json?
+}
+
+model Expense {
+  id           String  @id @map("_id")
+  category     String?
+  amount       Float?
+  date         String?
+  note         String?
+  payrollMonth String?
+  employeeId   String?
+  employeeName String?
+  source       String?
+}
+
+// Settings' existing data has colliding legacy ids across categories (e.g. a
+// 'shift' record and a 'salaryComponent' record both using id 1), so unlike the
+// other business models above, this one uses a real auto-generated ObjectId.
+model Setting {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  category  String?
+  name      String?
+  values    Json?
+  createdAt String?
+}

@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { loadDatabase, saveDatabase } = require('./database');
+const { loadDatabase, saveDatabase, saveCollection } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -9,16 +9,16 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-function loadData() {
+async function loadData() {
   return loadDatabase();
 }
 
-function saveData(data) {
-  saveDatabase(data);
+async function saveData(data) {
+  return saveDatabase(data);
 }
 
-function ensureCollections(data) {
-  ['branches', 'departments', 'employees', 'attendance', 'payroll', 'transfers', 'payrollRuns', 'expenses', 'settings', 'authUsers'].forEach(key => {
+async function ensureCollections(data) {
+  ['branches', 'departments', 'employees', 'attendance', 'payroll', 'transfers', 'payrollRuns', 'expenses', 'settings'].forEach(key => {
     if (!Array.isArray(data[key])) data[key] = [];
   });
   let changed = false;
@@ -56,12 +56,12 @@ function ensureCollections(data) {
       }
     }
   });
-  if (changed) saveData(data);
+  if (changed) await saveData(data);
   return data;
 }
 
-function loadDb() {
-  return ensureCollections(loadData());
+async function loadDb() {
+  return ensureCollections(await loadData());
 }
 
 function monthBounds(month) {
@@ -257,13 +257,13 @@ function sanitizeForSync(db) {
   return rest;
 }
 
-app.get('/api/sync', authorize('settings.view'), (req, res) => {
-  res.json(sanitizeForSync(loadDb()));
-});
+app.get('/api/sync', authorize('settings.view'), asyncHandler(async (req, res) => {
+  res.json(sanitizeForSync(await loadDb()));
+}));
 
-app.post('/api/sync', authorize('settings.edit'), (req, res) => {
+app.post('/api/sync', authorize('settings.edit'), asyncHandler(async (req, res) => {
   const incoming = req.body || {};
-  const db = loadDb();
+  const db = await loadDb();
   let changed = false;
 
   if (Array.isArray(incoming.branches)) {
@@ -301,99 +301,99 @@ app.post('/api/sync', authorize('settings.edit'), (req, res) => {
     }
   });
 
-  if (changed) saveData(db);
-  res.json({ success: true, db: sanitizeForSync(loadDb()) });
-});
+  if (changed) await saveData(db);
+  res.json({ success: true, db: sanitizeForSync(await loadDb()) });
+}));
 
 // --- 1. BRANCH APIs ---
-app.get('/api/branches', authorize('branches.view'), (req, res) => {
-  res.json(loadDb().branches);
-});
+app.get('/api/branches', authorize('branches.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).branches);
+}));
 
-app.post('/api/branches', authorize('branches.edit'), (req, res) => {
-  const db = loadData();
+app.post('/api/branches', authorize('branches.edit'), asyncHandler(async (req, res) => {
+  const db = await loadData();
   const branch = { id: Date.now(), ...req.body };
   if (!db.branches) db.branches = [];
   db.branches.push(branch);
-  saveData(db);
+  await saveCollection('branches', db.branches);
   res.status(201).json(branch);
-});
+}));
 
-app.post('/api/branches/update', authorize('branches.edit'), (req, res) => {
+app.post('/api/branches/update', authorize('branches.edit'), asyncHandler(async (req, res) => {
   const { id, name, code, address } = req.body;
-  const db = loadData();
+  const db = await loadData();
   const b = (db.branches || []).find(item => String(item.id) === String(id));
   if (b) {
     b.name = name;
     b.code = code;
     b.address = address;
-    saveData(db);
+    await saveCollection('branches', db.branches);
     return res.json({ message: 'Branch updated successfully' });
   }
   res.status(404).json({ error: 'Branch not found' });
-});
+}));
 
-app.post('/api/branches/delete', authorize('branches.edit'), (req, res) => {
+app.post('/api/branches/delete', authorize('branches.edit'), asyncHandler(async (req, res) => {
   const { id } = req.body;
-  const db = loadData();
+  const db = await loadData();
   db.branches = (db.branches || []).filter(b => String(b.id) !== String(id));
-  saveData(db);
+  await saveCollection('branches', db.branches);
   res.json({ message: 'Branch deleted' });
-});
+}));
 
 // --- 2. DEPARTMENT APIs ---
-app.get('/api/departments', authorize('departments.view'), (req, res) => {
-  res.json(loadDb().departments);
-});
+app.get('/api/departments', authorize('departments.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).departments);
+}));
 
-app.post('/api/departments', authorize('departments.edit'), (req, res) => {
-  const db = loadData();
+app.post('/api/departments', authorize('departments.edit'), asyncHandler(async (req, res) => {
+  const db = await loadData();
   const dept = { id: Date.now(), ...req.body };
   if (!db.departments) db.departments = [];
   db.departments.push(dept);
-  saveData(db);
+  await saveCollection('departments', db.departments);
   res.status(201).json(dept);
-});
+}));
 
-app.post('/api/departments/update', authorize('departments.edit'), (req, res) => {
+app.post('/api/departments/update', authorize('departments.edit'), asyncHandler(async (req, res) => {
   const { id, name, branchCode } = req.body;
-  const db = loadData();
+  const db = await loadData();
   const d = (db.departments || []).find(item => String(item.id) === String(id));
   if (d) {
     d.name = name;
     d.branchCode = branchCode;
-    saveData(db);
+    await saveCollection('departments', db.departments);
     return res.json({ message: 'Department updated successfully' });
   }
   res.status(404).json({ error: 'Department not found' });
-});
+}));
 
-app.post('/api/departments/delete', authorize('departments.edit'), (req, res) => {
+app.post('/api/departments/delete', authorize('departments.edit'), asyncHandler(async (req, res) => {
   const { id } = req.body;
-  const db = loadData();
+  const db = await loadData();
   db.departments = (db.departments || []).filter(d => String(d.id) !== String(id));
-  saveData(db);
+  await saveCollection('departments', db.departments);
   res.json({ message: 'Department deleted' });
-});
+}));
 
 // --- 3. EMPLOYEE APIs ---
-app.get('/api/employees', authorize('employees.view'), (req, res) => {
-  res.json(loadDb().employees);
-});
+app.get('/api/employees', authorize('employees.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).employees);
+}));
 
-app.get('/api/employees/:id', authorize('employees.view'), (req, res) => {
-  const db = loadDb();
+app.get('/api/employees/:id', authorize('employees.view'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(req.params.id));
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
   res.json(emp);
-});
+}));
 
-app.post('/api/employees', authorize('employees.edit'), (req, res) => {
-  const db = loadDb();
+app.post('/api/employees', authorize('employees.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const incomingId = req.body.id ? (Number(req.body.id) || req.body.id) : (Date.now() + Math.random());
   const empCode = req.body.empCode || ('EMP-' + String((db.employees || []).length + 1).padStart(3, '0'));
   const salary = number(req.body.salary ?? req.body.baseSalary);
-  
+
   const emp = {
     id: incomingId,
     empCode,
@@ -411,7 +411,7 @@ app.post('/api/employees', authorize('employees.edit'), (req, res) => {
   };
 
   if (!db.employees) db.employees = [];
-  
+
   const existingIndex = db.employees.findIndex(e => String(e.id) === String(emp.id) || (emp.empCode && e.empCode && e.empCode.toLowerCase() === emp.empCode.toLowerCase()));
   if (existingIndex !== -1) {
     db.employees[existingIndex] = Object.assign(db.employees[existingIndex], emp);
@@ -419,15 +419,15 @@ app.post('/api/employees', authorize('employees.edit'), (req, res) => {
     db.employees.push(emp);
   }
 
-  saveData(db);
+  await saveCollection('employees', db.employees);
   res.status(201).json(emp);
-});
+}));
 
-app.put('/api/employees/:id', authorize('employees.edit'), (req, res) => {
-  const db = loadDb();
+app.put('/api/employees/:id', authorize('employees.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const paramId = req.params.id;
   let emp = (db.employees || []).find(e => String(e.id) === String(paramId) || (typeof e.id === 'number' && !isNaN(Number(paramId)) && e.id === Number(paramId)));
-  
+
   if (!emp && req.body.empCode) {
     emp = (db.employees || []).find(e => e.empCode && e.empCode.toLowerCase() === req.body.empCode.toLowerCase());
   }
@@ -452,7 +452,7 @@ app.put('/api/employees/:id', authorize('employees.edit'), (req, res) => {
     };
     if (!db.employees) db.employees = [];
     db.employees.push(emp);
-    saveData(db);
+    await saveCollection('employees', db.employees);
     return res.json(emp);
   }
 
@@ -478,47 +478,51 @@ app.put('/api/employees/:id', authorize('employees.edit'), (req, res) => {
   if (req.body.workSchedule !== undefined) emp.workSchedule = req.body.workSchedule;
   if (req.body.shift !== undefined) emp.workSchedule = { shiftName: req.body.shift };
 
+  let attendanceChanged = false;
   if (oldName && emp.name && oldName !== emp.name && Array.isArray(db.attendance)) {
     db.attendance.forEach(a => {
-      if (String(a.empId) === String(emp.id) || a.empName === oldName) a.empName = emp.name;
+      if (String(a.empId) === String(emp.id) || a.empName === oldName) { a.empName = emp.name; attendanceChanged = true; }
     });
   }
 
-  saveData(db);
+  await saveCollection('employees', db.employees);
+  if (attendanceChanged) await saveCollection('attendance', db.attendance);
   res.json(emp);
-});
+}));
 
-app.delete('/api/employees/:id', authorize('employees.edit'), (req, res) => {
-  const db = loadDb();
+app.delete('/api/employees/:id', authorize('employees.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const paramId = req.params.id;
   db.employees = (db.employees || []).filter(e => String(e.id) !== String(paramId));
+  await saveCollection('employees', db.employees);
   if (Array.isArray(db.attendance)) {
     db.attendance = db.attendance.filter(a => String(a.empId) !== String(paramId));
+    await saveCollection('attendance', db.attendance);
   }
   if (Array.isArray(db.payroll)) {
     db.payroll = db.payroll.filter(p => String(p.empId) !== String(paramId));
+    await saveCollection('payroll', db.payroll);
   }
-  saveData(db);
   res.json({ message: 'Employee deleted', id: paramId });
-});
+}));
 
 // Shift Branch API (legacy support)
-app.post('/api/employees/update-branch', authorize('employees.edit'), (req, res) => {
+app.post('/api/employees/update-branch', authorize('employees.edit'), asyncHandler(async (req, res) => {
   const { id, branchCode } = req.body;
-  const db = loadDb();
+  const db = await loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(id));
   if (emp) {
     emp.branchCode = branchCode;
-    saveData(db);
+    await saveCollection('employees', db.employees);
     return res.json({ message: 'Branch shifted successfully' });
   }
   res.status(404).json({ error: 'Employee not found' });
-});
+}));
 
 // Full Profile Edit (legacy support)
-app.post('/api/employees/update-full', authorize('employees.edit'), (req, res) => {
+app.post('/api/employees/update-full', authorize('employees.edit'), asyncHandler(async (req, res) => {
   const { id, name, email, salary, branchCode, deptName } = req.body;
-  const db = loadDb();
+  const db = await loadDb();
   const emp = (db.employees || []).find(e => String(e.id) === String(id));
   if (emp) {
     const oldName = emp.name;
@@ -528,32 +532,34 @@ app.post('/api/employees/update-full', authorize('employees.edit'), (req, res) =
     emp.baseSalary = Number(salary);
     emp.branchCode = branchCode;
     emp.deptName = deptName;
+    await saveCollection('employees', db.employees);
 
     if (oldName !== name && db.attendance) {
-      db.attendance.forEach(a => { if (a.empName === oldName) a.empName = name; });
+      let attendanceChanged = false;
+      db.attendance.forEach(a => { if (a.empName === oldName) { a.empName = name; attendanceChanged = true; } });
+      if (attendanceChanged) await saveCollection('attendance', db.attendance);
     }
-    saveData(db);
     return res.json({ message: 'Employee updated successfully' });
   }
   res.status(404).json({ error: 'Employee not found' });
-});
+}));
 
 // Employee Delete (legacy support)
-app.post('/api/employees/delete', authorize('employees.edit'), (req, res) => {
+app.post('/api/employees/delete', authorize('employees.edit'), asyncHandler(async (req, res) => {
   const { id } = req.body;
-  const db = loadDb();
+  const db = await loadDb();
   db.employees = (db.employees || []).filter(e => String(e.id) !== String(id));
-  saveData(db);
+  await saveCollection('employees', db.employees);
   res.json({ message: 'Employee deleted' });
-});
+}));
 
-app.get('/api/transfers', authorize('transfers.view'), (req, res) => {
-  res.json(loadDb().transfers);
-});
+app.get('/api/transfers', authorize('transfers.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).transfers);
+}));
 
-app.post('/api/transfers', authorize('transfers.edit'), (req, res) => {
+app.post('/api/transfers', authorize('transfers.edit'), asyncHandler(async (req, res) => {
   const { employeeId, sourceBranch, targetBranch, effectiveDate, relocationAllowance, salaryRevision, department } = req.body;
-  const db = loadDb();
+  const db = await loadDb();
   const employee = db.employees.find(item => String(item.id) === String(employeeId));
   const targetExists = db.branches.some(branch => branch.code === targetBranch);
   if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -566,17 +572,17 @@ app.post('/api/transfers', authorize('transfers.edit'), (req, res) => {
     department: department || employee.deptName || '', status: 'Approved', createdAt: new Date().toISOString()
   };
   db.transfers.push(transfer);
-  saveData(db);
+  await saveCollection('transfers', db.transfers);
   res.status(201).json(transfer);
-});
+}));
 
 // --- 4. ATTENDANCE APIs ---
-app.get('/api/attendance', authorize('attendance.view'), (req, res) => {
-  res.json(loadDb().attendance);
-});
+app.get('/api/attendance', authorize('attendance.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).attendance);
+}));
 
-app.post('/api/attendance', authorize('attendance.edit'), (req, res) => {
-  const db = loadDb();
+app.post('/api/attendance', authorize('attendance.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const { empId, empName, date, status, daysWorked, overtimeHours, unpaidLeave, paidLeave, gazettedHoliday } = req.body;
   const emp = db.employees.find(e => String(e.id) === String(empId)) || (empName ? db.employees.find(e => e.name === empName) : null);
   if (!emp) return res.status(404).json({ error: 'Employee not found' });
@@ -596,7 +602,7 @@ app.post('/api/attendance', authorize('attendance.edit'), (req, res) => {
       paidLeave: number(paidLeave),
       gazettedHoliday: number(gazettedHoliday)
     });
-    saveData(db);
+    await saveCollection('attendance', db.attendance);
     return res.json(existing);
   }
 
@@ -616,13 +622,13 @@ app.post('/api/attendance', authorize('attendance.edit'), (req, res) => {
   };
 
   db.attendance.push(record);
-  saveData(db);
+  await saveCollection('attendance', db.attendance);
   res.status(201).json(record);
-});
+}));
 
-app.post('/api/attendance/mark-all-present', authorize('attendance.bulkMark'), (req, res) => {
+app.post('/api/attendance/mark-all-present', authorize('attendance.bulkMark'), asyncHandler(async (req, res) => {
   const { date } = req.body;
-  const db = loadData();
+  const db = await loadData();
 
   if (!db.attendance) db.attendance = [];
   if (!db.employees || db.employees.length === 0) {
@@ -644,43 +650,43 @@ app.post('/api/attendance/mark-all-present', authorize('attendance.bulkMark'), (
     }
   });
 
-  saveData(db);
+  await saveCollection('attendance', db.attendance);
   res.status(201).json({ message: 'All employees marked present' });
-});
+}));
 
-app.post('/api/attendance/update', authorize('attendance.edit'), (req, res) => {
+app.post('/api/attendance/update', authorize('attendance.edit'), asyncHandler(async (req, res) => {
   const { id, status, overtimeHours } = req.body;
-  const db = loadData();
+  const db = await loadData();
   const record = (db.attendance || []).find(a => String(a.id) === String(id));
   if (record) {
     record.status = status;
     if (overtimeHours !== undefined) record.overtimeHours = number(overtimeHours);
-    saveData(db);
+    await saveCollection('attendance', db.attendance);
     return res.json({ message: 'Attendance updated' });
   }
   res.status(404).json({ error: 'Record not found' });
-});
+}));
 
-app.post('/api/attendance/delete', authorize('attendance.edit'), (req, res) => {
+app.post('/api/attendance/delete', authorize('attendance.edit'), asyncHandler(async (req, res) => {
   const { id } = req.body;
-  const db = loadData();
+  const db = await loadData();
   if (db.attendance) {
     db.attendance = db.attendance.filter(a => String(a.id) !== String(id));
-    saveData(db);
+    await saveCollection('attendance', db.attendance);
     return res.json({ message: 'Attendance deleted' });
   }
   res.status(400).json({ error: 'No attendance records' });
-});
+}));
 
 // --- 5. PAYROLL APIs ---
-app.get('/api/payroll', authorize('payroll.view'), (req, res) => {
-  res.json(loadDb().payroll);
-});
+app.get('/api/payroll', authorize('payroll.view'), asyncHandler(async (req, res) => {
+  res.json((await loadDb()).payroll);
+}));
 
-app.post('/api/payroll/generate', authorize('payroll.generate'), (req, res) => {
+app.post('/api/payroll/generate', authorize('payroll.generate'), asyncHandler(async (req, res) => {
   const { month, workingDays, overtimeMultiplier = 1.5, statutoryDeductions = 0, gazettedHolidays = 0 } = req.body;
   if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'Month must use YYYY-MM format' });
-  const db = loadDb();
+  const db = await loadDb();
   const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
   const totalWorkingDays = number(workingDays, Array.from({ length: daysInMonth }, (_, index) => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, index + 1).getDay()).filter(day => day !== 0 && day !== 6).length);
   const exceptions = [];
@@ -739,14 +745,15 @@ app.post('/api/payroll/generate', authorize('payroll.generate'), (req, res) => {
   db.payroll = db.payroll.filter(record => record.month !== month).concat(generatedPayrolls);
   db.payrollRuns = db.payrollRuns.filter(run => run.month !== month);
   db.payrollRuns.push({ id: Date.now(), month, workingDays: totalWorkingDays, generatedAt: new Date().toISOString(), exceptions });
-  saveData(db);
+  await saveCollection('payroll', db.payroll);
+  await saveCollection('payrollRuns', db.payrollRuns);
   res.status(201).json({ month, workingDays: totalWorkingDays, records: generatedPayrolls, exceptions });
-});
+}));
 
 // --- 6. REPORT API ---
-app.get('/api/reports/monthly', authorize('reports.view'), (req, res) => {
+app.get('/api/reports/monthly', authorize('reports.view'), asyncHandler(async (req, res) => {
   const { month, branch, dept, empId, emp } = req.query;
-  const db = loadData();
+  const db = await loadData();
 
   let filtered = db.payroll || [];
   if (month) filtered = filtered.filter(p => p.month === month);
@@ -769,10 +776,10 @@ app.get('/api/reports/monthly', authorize('reports.view'), (req, res) => {
   else if (emp) filtered = filtered.filter(p => p.empName === emp);
 
   res.json(filtered);
-});
+}));
 
-app.get('/api/payroll/:month/summary', authorize('payroll.view'), (req, res) => {
-  const db = loadDb();
+app.get('/api/payroll/:month/summary', authorize('payroll.view'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const records = db.payroll.filter(record => record.month === req.params.month);
   const run = db.payrollRuns.find(item => item.month === req.params.month) || { exceptions: [] };
   const transfers = db.transfers.filter(item => item.effectiveDate && item.effectiveDate.startsWith(req.params.month));
@@ -786,138 +793,143 @@ app.get('/api/payroll/:month/summary', authorize('payroll.view'), (req, res) => 
       return summary;
     }, {})
   });
-});
+}));
 
 // REST CRUD aliases used by the settings and future data-management screens.
-app.put('/api/branches/:id', authorize('branches.edit'), (req, res) => {
-  const db = loadDb();
+app.put('/api/branches/:id', authorize('branches.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb();
   const branch = db.branches.find(item => String(item.id) === String(req.params.id));
   if (!branch) return res.status(404).json({ error: 'Branch not found' });
   Object.assign(branch, { name: req.body.name ?? branch.name, code: req.body.code ?? branch.code, address: req.body.address ?? branch.address });
-  saveData(db); res.json(branch);
-});
+  await saveCollection('branches', db.branches); res.json(branch);
+}));
 
-app.delete('/api/branches/:id', authorize('branches.edit'), (req, res) => {
-  const db = loadDb(); db.branches = db.branches.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Branch deleted' });
-});
+app.delete('/api/branches/:id', authorize('branches.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.branches = db.branches.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('branches', db.branches); res.json({ message: 'Branch deleted' });
+}));
 
-app.put('/api/departments/:id', authorize('departments.edit'), (req, res) => {
-  const db = loadDb(); const department = db.departments.find(item => String(item.id) === String(req.params.id));
+app.put('/api/departments/:id', authorize('departments.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); const department = db.departments.find(item => String(item.id) === String(req.params.id));
   if (!department) return res.status(404).json({ error: 'Department not found' });
   Object.assign(department, { name: req.body.name ?? department.name, branchCode: req.body.branchCode ?? department.branchCode });
-  saveData(db); res.json(department);
-});
+  await saveCollection('departments', db.departments); res.json(department);
+}));
 
-app.delete('/api/departments/:id', authorize('departments.edit'), (req, res) => {
-  const db = loadDb(); db.departments = db.departments.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Department deleted' });
-});
+app.delete('/api/departments/:id', authorize('departments.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.departments = db.departments.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('departments', db.departments); res.json({ message: 'Department deleted' });
+}));
 
-app.put('/api/attendance/:id', authorize('attendance.edit'), (req, res) => {
-  const db = loadDb(); const record = db.attendance.find(item => String(item.id) === String(req.params.id));
+app.put('/api/attendance/:id', authorize('attendance.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); const record = db.attendance.find(item => String(item.id) === String(req.params.id));
   if (!record) return res.status(404).json({ error: 'Attendance record not found' });
-  Object.assign(record, req.body, { id: record.id, empId: record.empId }); saveData(db); res.json(record);
-});
+  Object.assign(record, req.body, { id: record.id, empId: record.empId }); await saveCollection('attendance', db.attendance); res.json(record);
+}));
 
-app.delete('/api/attendance/:id', authorize('attendance.edit'), (req, res) => {
-  const db = loadDb(); db.attendance = db.attendance.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Attendance deleted' });
-});
+app.delete('/api/attendance/:id', authorize('attendance.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.attendance = db.attendance.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('attendance', db.attendance); res.json({ message: 'Attendance deleted' });
+}));
 
-app.put('/api/transfers/:id', authorize('transfers.edit'), (req, res) => {
-  const db = loadDb(); const transfer = db.transfers.find(item => String(item.id) === String(req.params.id));
+app.put('/api/transfers/:id', authorize('transfers.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); const transfer = db.transfers.find(item => String(item.id) === String(req.params.id));
   if (!transfer) return res.status(404).json({ error: 'Transfer not found' });
-  Object.assign(transfer, req.body, { id: transfer.id, employeeId: transfer.employeeId }); saveData(db); res.json(transfer);
-});
+  Object.assign(transfer, req.body, { id: transfer.id, employeeId: transfer.employeeId }); await saveCollection('transfers', db.transfers); res.json(transfer);
+}));
 
-app.delete('/api/transfers/:id', authorize('transfers.edit'), (req, res) => {
-  const db = loadDb(); db.transfers = db.transfers.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Transfer deleted' });
-});
+app.delete('/api/transfers/:id', authorize('transfers.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.transfers = db.transfers.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('transfers', db.transfers); res.json({ message: 'Transfer deleted' });
+}));
 
-app.get('/api/expenses', authorize('expenses.view'), (req, res) => res.json(loadDb().expenses));
+app.get('/api/expenses', authorize('expenses.view'), asyncHandler(async (req, res) => res.json((await loadDb()).expenses)));
 
-app.post('/api/expenses', authorize('expenses.edit'), (req, res) => {
+app.post('/api/expenses', authorize('expenses.edit'), asyncHandler(async (req, res) => {
   const { category, amount, date, note, payrollMonth, employeeId, employeeName } = req.body;
   if (!category || number(amount) <= 0) return res.status(400).json({ error: 'Category and positive amount are required' });
-  const db = loadDb(); const expense = { id: Date.now() + Math.random(), category, amount: number(amount), date: date || new Date().toISOString().slice(0, 10), note: note || '', payrollMonth: payrollMonth || '', employeeId: employeeId || null, employeeName: employeeName || '', source: req.body.source || 'Manual' };
-  db.expenses.push(expense); saveData(db); res.status(201).json(expense);
-});
+  const db = await loadDb(); const expense = { id: Date.now() + Math.random(), category, amount: number(amount), date: date || new Date().toISOString().slice(0, 10), note: note || '', payrollMonth: payrollMonth || '', employeeId: employeeId || null, employeeName: employeeName || '', source: req.body.source || 'Manual' };
+  db.expenses.push(expense); await saveCollection('expenses', db.expenses); res.status(201).json(expense);
+}));
 
-app.put('/api/expenses/:id', authorize('expenses.edit'), (req, res) => {
-  const db = loadDb(); const expense = db.expenses.find(item => String(item.id) === String(req.params.id));
+app.put('/api/expenses/:id', authorize('expenses.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); const expense = db.expenses.find(item => String(item.id) === String(req.params.id));
   if (!expense) return res.status(404).json({ error: 'Expense not found' });
-  Object.assign(expense, req.body, { id: expense.id, amount: number(req.body.amount ?? expense.amount) }); saveData(db); res.json(expense);
-});
+  Object.assign(expense, req.body, { id: expense.id, amount: number(req.body.amount ?? expense.amount) }); await saveCollection('expenses', db.expenses); res.json(expense);
+}));
 
-app.delete('/api/expenses/:id', authorize('expenses.edit'), (req, res) => {
-  const db = loadDb(); db.expenses = db.expenses.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Expense deleted' });
-});
+app.delete('/api/expenses/:id', authorize('expenses.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.expenses = db.expenses.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('expenses', db.expenses); res.json({ message: 'Expense deleted' });
+}));
 
-app.put('/api/payroll/:id', authorize('payroll.edit'), (req, res) => {
-  const db = loadDb(); const payroll = db.payroll.find(item => String(item.id) === String(req.params.id));
+app.put('/api/payroll/:id', authorize('payroll.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); const payroll = db.payroll.find(item => String(item.id) === String(req.params.id));
   if (!payroll) return res.status(404).json({ error: 'Payroll record not found' });
-  Object.assign(payroll, req.body, { id: payroll.id, empId: payroll.empId }); saveData(db); res.json(payroll);
-});
+  Object.assign(payroll, req.body, { id: payroll.id, empId: payroll.empId }); await saveCollection('payroll', db.payroll); res.json(payroll);
+}));
 
-app.delete('/api/payroll/:id', authorize('payroll.edit'), (req, res) => {
-  const db = loadDb(); db.payroll = db.payroll.filter(item => String(item.id) !== String(req.params.id)); saveData(db); res.json({ message: 'Payroll record deleted' });
-});
+app.delete('/api/payroll/:id', authorize('payroll.edit'), asyncHandler(async (req, res) => {
+  const db = await loadDb(); db.payroll = db.payroll.filter(item => String(item.id) !== String(req.params.id)); await saveCollection('payroll', db.payroll); res.json({ message: 'Payroll record deleted' });
+}));
 
-app.get('/api/settings', authorize('settings.view'), (req, res) => {
-  res.json(loadDb().settings);
-});
+// Settings use real Prisma CRUD (not the load-whole-collection/saveCollection pattern
+// used elsewhere) because they need STABLE per-record ids across requests — unlike the
+// other business collections, Setting's legacy JSON ids collided across categories
+// (see prisma/schema.prisma), so these are real auto-generated ObjectIds now, and a
+// "delete everything, recreate" write would hand out a new id on every unrelated edit.
+app.get('/api/settings', authorize('settings.view'), asyncHandler(async (req, res) => {
+  res.json(await prisma.setting.findMany());
+}));
 
 // System user accounts are managed exclusively via /api/users (Prisma-backed) — this
 // generic settings collection must never carry a 'user' category record again, since
 // that used to be how any authenticated user could self-grant an arbitrary role.
-app.post('/api/settings', authorize('settings.edit'), (req, res) => {
-  const { id, category, name, values } = req.body;
+app.post('/api/settings', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const { category, name, values } = req.body;
   if (!category || !name) return res.status(400).json({ error: 'Category and name are required' });
   if (category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
-  const db = loadDb();
-  const settingId = id ? (Number(id) || id) : (Date.now() + Math.random());
-  const setting = { id: settingId, category, name, values: values || {}, createdAt: new Date().toISOString() };
-  if (!db.settings) db.settings = [];
-  db.settings.push(setting);
-  saveData(db);
+  const setting = await prisma.setting.create({
+    data: { category, name, values: values || {}, createdAt: new Date().toISOString() }
+  });
   res.status(201).json(setting);
-});
+}));
 
-app.delete('/api/settings/:id', authorize('settings.edit'), (req, res) => {
-  const db = loadDb();
-  db.settings = (db.settings || []).filter(setting => String(setting.id) !== String(req.params.id));
-  saveData(db);
+app.delete('/api/settings/:id', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const id = req.params.id;
+  if (isValidObjectId(id)) {
+    await prisma.setting.deleteMany({ where: { id } });
+  }
   res.json({ message: 'Setting removed' });
-});
+}));
 
-app.put('/api/settings/:id', authorize('settings.edit'), (req, res) => {
+app.put('/api/settings/:id', authorize('settings.edit'), asyncHandler(async (req, res) => {
   if (req.body.category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
-  const db = loadDb();
   const paramId = req.params.id;
-  let setting = (db.settings || []).find(item => String(item.id) === String(paramId) || (typeof item.id === 'number' && !isNaN(Number(paramId)) && item.id === Number(paramId)));
+  let setting = isValidObjectId(paramId) ? await prisma.setting.findUnique({ where: { id: paramId } }) : null;
 
   if (!setting && req.body.category && req.body.name) {
-    setting = (db.settings || []).find(item => item.category === req.body.category && item.name === req.body.name);
+    setting = await prisma.setting.findFirst({ where: { category: req.body.category, name: req.body.name } });
   }
   if (setting && setting.category === 'user') return res.status(400).json({ error: 'Use /api/users to manage system user accounts.' });
 
   if (!setting) {
-    setting = {
-      id: (!isNaN(Number(paramId)) ? Number(paramId) : paramId) || Date.now(),
-      category: req.body.category || 'general',
-      name: req.body.name || 'Setting',
-      values: req.body.values || {},
-      createdAt: new Date().toISOString()
-    };
-    if (!db.settings) db.settings = [];
-    db.settings.push(setting);
-  } else {
-    setting.category = req.body.category || setting.category;
-    setting.name = req.body.name || setting.name;
-    setting.values = req.body.values || setting.values || {};
+    const created = await prisma.setting.create({
+      data: {
+        category: req.body.category || 'general',
+        name: req.body.name || 'Setting',
+        values: req.body.values || {},
+        createdAt: new Date().toISOString()
+      }
+    });
+    return res.json(created);
   }
 
-  saveData(db);
-  res.json(setting);
-});
+  const updated = await prisma.setting.update({
+    where: { id: setting.id },
+    data: {
+      category: req.body.category || setting.category,
+      name: req.body.name || setting.name,
+      values: req.body.values || setting.values || {}
+    }
+  });
+  res.json(updated);
+}));
 
 // --- PERMISSIONS / ROLES / USERS (RBAC — Prisma-backed) ---
 function publicRole(role) {
