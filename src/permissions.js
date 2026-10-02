@@ -6,6 +6,7 @@ const PERMISSIONS = [
   { key: 'employees.view', module: 'employees', label: 'View Employees' },
   { key: 'employees.edit', module: 'employees', label: 'Create/Edit/Delete Employees' },
   { key: 'employees.viewSalary', module: 'employees', label: 'View Employee Salary Details' },
+  { key: 'employees.manageSalary', module: 'employees', label: 'Manage Employee Salary Structure' },
   { key: 'transfers.view', module: 'transfers', label: 'View Branch Transfers' },
   { key: 'transfers.edit', module: 'transfers', label: 'Create/Edit/Delete Transfers' },
   { key: 'attendance.view', module: 'attendance', label: 'View Attendance' },
@@ -31,7 +32,7 @@ const DEFAULT_ROLES = {
   'Super Admin': ALL_KEYS,
   'HR Admin': [
     'branches.view', 'branches.edit', 'departments.view', 'departments.edit',
-    'employees.view', 'employees.edit', 'employees.viewSalary',
+    'employees.view', 'employees.edit', 'employees.viewSalary', 'employees.manageSalary',
     'transfers.view', 'transfers.edit',
     'attendance.view', 'attendance.edit', 'attendance.bulkMark',
     'payroll.view', 'payroll.edit',
@@ -68,8 +69,24 @@ async function seedRbac(prisma, { hashPassword, generateRandomPassword }) {
   const idByKey = Object.fromEntries(allPermissions.map(p => [p.key, p.id]));
 
   for (const [roleName, keys] of Object.entries(DEFAULT_ROLES)) {
-    const existing = await prisma.role.findUnique({ where: { name: roleName } });
-    if (existing) continue;
+    const existing = await prisma.role.findUnique({
+      where: { name: roleName },
+      include: { permissions: true },
+    });
+    if (existing) {
+      // Role already seeded in a prior deploy — only backfill permission keys that are
+      // new to the catalog since then (e.g. this phase's 'employees.manageSalary'), so an
+      // admin's manual permission edits to this role aren't clobbered on every boot.
+      if (!existing.isSystem) continue;
+      const alreadyGranted = new Set(existing.permissions.map(rp => rp.permissionId));
+      const missingKeys = keys.filter(key => !alreadyGranted.has(idByKey[key]));
+      if (missingKeys.length) {
+        await prisma.rolePermission.createMany({
+          data: missingKeys.map(key => ({ roleId: existing.id, permissionId: idByKey[key] })),
+        });
+      }
+      continue;
+    }
     const role = await prisma.role.create({
       data: { name: roleName, isSystem: true, description: `Default ${roleName} role` },
     });

@@ -16,6 +16,8 @@ const COLLECTION_MODEL = {
   payrollRuns: 'payrollRun',
   expenses: 'expense',
   settings: 'setting',
+  employeeSalaryHistory: 'employeeSalaryHistory',
+  statutoryComponents: 'statutoryComponent',
 };
 
 const COLLECTIONS = Object.keys(COLLECTION_MODEL);

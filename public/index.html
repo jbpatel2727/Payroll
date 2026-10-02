@@ -370,6 +370,35 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">Salary Revision History</h3>
+                                <p class="text-xs text-gray-500 mt-0.5">Effective-dated — payroll for a past month always uses what was effective then</p>
+                            </div>
+                            <button onclick="openSalaryStructureModal()" data-permission="employees.manageSalary" class="bg-indigo-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center space-x-2">
+                                <i class="fa-solid fa-plus"></i><span>Add Salary Revision</span>
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-sm">
+                                <thead>
+                                    <tr class="bg-gray-50 text-gray-400 uppercase text-[10px] font-bold tracking-wider">
+                                        <th class="px-4 py-2.5">Effective From</th>
+                                        <th class="px-4 py-2.5 text-right">Basic</th>
+                                        <th class="px-4 py-2.5 text-right">HRA</th>
+                                        <th class="px-4 py-2.5 text-right">Conveyance</th>
+                                        <th class="px-4 py-2.5 text-right">Allowances</th>
+                                        <th class="px-4 py-2.5 text-right">Bonus/Incentive</th>
+                                        <th class="px-4 py-2.5 text-right">Deductions</th>
+                                        <th class="px-4 py-2.5"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="salaryHistoryBody" class="divide-y divide-gray-100 text-gray-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ==================== PAGE 4: ATTENDANCE MANAGEMENT PAGE ==================== -->
@@ -606,6 +635,9 @@
                             <button data-permission="settings.view" onclick="switchSettingsTab('Salary', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-sack-dollar"></i><span>Salary Structure</span>
                             </button>
+                            <button data-permission="settings.view" onclick="switchSettingsTab('PayrollSetup', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
+                                <i class="fa-solid fa-sliders"></i><span>Payroll Setup</span>
+                            </button>
                             <button data-permission="users.view" onclick="switchSettingsTab('Users', this)" class="settings-tab-btn border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium px-4 py-2.5 text-sm flex items-center space-x-2 shrink-0 transition">
                                 <i class="fa-solid fa-user-shield"></i><span>Users</span>
                             </button>
@@ -705,6 +737,7 @@
                                                 <th class="px-4 py-3">Type</th>
                                                 <th class="px-4 py-3">Calculation</th>
                                                 <th class="px-4 py-3">Value</th>
+                                                <th class="px-4 py-3">Effective From</th>
                                                 <th class="px-4 py-3 text-right">Actions</th>
                                             </tr>
                                         </thead>
@@ -784,6 +817,37 @@
                                     <div>
                                         <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Address</label>
                                         <textarea id="bizAddress" rows="3" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                                    </div>
+                                    <div class="pt-2 flex justify-end">
+                                        <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- TAB PAYROLL SETUP -->
+                            <div id="setting-tab-PayrollSetup" class="settings-tab-content hidden max-w-2xl">
+                                <h3 class="text-base font-bold text-gray-800 mb-4">Payroll Setup</h3>
+                                <form id="payrollSetupForm" onsubmit="savePayrollSetup(event)" class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Payroll Frequency</label>
+                                        <select id="pls_frequency" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                                            <option value="Monthly">Monthly</option>
+                                            <option value="Weekly">Weekly</option>
+                                            <option value="Bi-weekly">Bi-weekly</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Salary Calculation Method</label>
+                                        <select id="pls_calcMethod" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                                            <option value="workingDays">Working Days</option>
+                                            <option value="calendarDays">Calendar Days</option>
+                                            <option value="attendanceDays">Attendance Days</option>
+                                        </select>
+                                        <p class="text-xs text-gray-500 mt-1">Determines the denominator used for the per-day salary rate when generating payroll.</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Default Overtime Multiplier</label>
+                                        <input type="number" id="pls_overtimeMultiplier" min="0" step="0.1" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
                                     </div>
                                     <div class="pt-2 flex justify-end">
                                         <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition">Save Changes</button>
@@ -890,6 +954,54 @@
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Target Branch</label><select id="transferBranchSelect" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></select></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Department</label><select id="transferDepartmentSelect" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></select></div>
                 <div class="flex justify-end gap-2"><button type="button" onclick="closeTransferBranchModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">Cancel</button><button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Apply Transfer</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SALARY STRUCTURE MODAL: add a new effective-dated salary revision for an employee -->
+    <div id="salaryStructureModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-indigo-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
+                <h3 class="font-bold text-lg">Add Salary Revision</h3>
+                <button onclick="closeSalaryStructureModal()" class="text-indigo-200 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="salaryStructureForm" onsubmit="handleSalaryStructureFormSubmit(event)" class="p-6 space-y-4 overflow-y-auto">
+                <input type="hidden" id="salaryStructureEmployeeId">
+                <p id="salaryStructureEmployeeName" class="text-sm text-gray-500"></p>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Effective From</label>
+                    <input type="date" id="ss_effectiveFrom" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Earnings</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Basic</label><input type="number" id="ss_basic" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">HRA</label><input type="number" id="ss_hra" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Conveyance</label><input type="number" id="ss_conveyance" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Special Allowance</label><input type="number" id="ss_specialAllowance" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Other Allowance</label><input type="number" id="ss_otherAllowance" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Bonus</label><input type="number" id="ss_bonus" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Incentive</label><input type="number" id="ss_incentive" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Other Earnings</label><input type="number" id="ss_otherEarnings" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">Deductions</p>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Tax</label><input type="number" id="ss_tax" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Loan</label><input type="number" id="ss_loan" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Advance</label><input type="number" id="ss_advance" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                        <div><label class="block text-[11px] text-gray-500 mb-1">Other Deduction</label><input type="number" id="ss_otherDeduction" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"></div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Note (optional)</label>
+                    <input type="text" id="ss_note" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="e.g. Annual increment">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button type="button" onclick="closeSalaryStructureModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Save Revision</button>
+                </div>
             </form>
         </div>
     </div>
@@ -2364,6 +2476,7 @@
             calendarViewMonth = TODAY_DATE.slice(0, 7);
             buildAttendanceCalendar(emp);
             renderSalaryBreakdown(emp);
+            loadEmployeeSalaryHistory(emp.id, true);
 
             document.getElementById('pageTitle').innerText = 'Employee Profile';
             document.querySelectorAll('.page-content').forEach(content => content.classList.add('hidden'));
@@ -2413,20 +2526,37 @@
             document.getElementById('calCountAbsent').innerText = absentCount;
         }
 
-        function renderSalaryBreakdown(emp) {
-            const baseSalary = Number(emp.salary || emp.baseSalary || 0);
-            document.getElementById('detailBaseSalary').innerText = `₹${baseSalary.toLocaleString('en-IN')}`;
+        const SALARY_BREAKDOWN_EARNING_FIELDS = [['hra', 'HRA'], ['conveyance', 'Conveyance'], ['specialAllowance', 'Special Allowance'], ['otherAllowance', 'Other Allowance'], ['bonus', 'Bonus'], ['incentive', 'Incentive'], ['otherEarnings', 'Other Earnings']];
+        const SALARY_BREAKDOWN_DEDUCTION_FIELDS = [['tax', 'Tax'], ['loan', 'Loan'], ['advance', 'Advance'], ['otherDeduction', 'Other Deduction']];
 
-            const rows = [{ name: 'Base Salary', type: 'Earning', calcLabel: 'Fixed Amount', amount: baseSalary }];
-            let grossEarnings = baseSalary;
+        async function renderSalaryBreakdown(emp) {
+            if (!statutoryDataLoaded) await loadStatutoryComponents();
+            const history = await fetch(`/api/employees/${emp.id}/salary-history`).then(r => r.ok ? r.json() : []).catch(() => []);
+            const todayKey = new Date().toISOString().slice(0, 10);
+            const current = history.filter(row => row.effectiveFrom && row.effectiveFrom <= todayKey).sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+            const basic = current ? Number(current.basic || 0) : Number(emp.salary || emp.baseSalary || 0);
+            document.getElementById('detailBaseSalary').innerText = `₹${basic.toLocaleString('en-IN')}`;
+
+            const rows = [{ name: 'Basic', type: 'Earning', calcLabel: 'Fixed Amount', amount: basic }];
+            let grossEarnings = basic;
             let totalDeductions = 0;
 
-            (settingsData.salaryComponents || []).forEach(component => {
-                const amount = component.calcType === 'Percentage' ? (baseSalary * Number(component.value || 0)) / 100 : Number(component.value || 0);
-                const calcLabel = component.calcType === 'Percentage' ? `${component.value}% of Base` : 'Fixed Amount';
-                rows.push({ name: component.name, type: component.type, calcLabel, amount });
-                if (component.type === 'Deduction') totalDeductions += amount;
-                else grossEarnings += amount;
+            if (current) {
+                SALARY_BREAKDOWN_EARNING_FIELDS.forEach(([key, label]) => {
+                    const amount = Number(current[key] || 0);
+                    if (amount) { rows.push({ name: label, type: 'Earning', calcLabel: 'Fixed Amount', amount }); grossEarnings += amount; }
+                });
+                SALARY_BREAKDOWN_DEDUCTION_FIELDS.forEach(([key, label]) => {
+                    const amount = Number(current[key] || 0);
+                    if (amount) { rows.push({ name: label, type: 'Deduction', calcLabel: 'Fixed Amount', amount }); totalDeductions += amount; }
+                });
+            }
+
+            latestStatutoryComponentsByKey().filter(component => component.type === 'Deduction').forEach(component => {
+                const amount = component.calcType === 'Percentage' ? (basic * Number(component.value || 0)) / 100 : Number(component.value || 0);
+                const calcLabel = component.calcType === 'Percentage' ? `${component.value}% of Basic` : 'Fixed Amount';
+                rows.push({ name: component.name, type: 'Deduction', calcLabel, amount });
+                totalDeductions += amount;
             });
 
             const tbody = document.getElementById('salaryBreakdownBody');
@@ -2584,6 +2714,94 @@
                 syncLocalToServer();
             }
         });
+
+        const SALARY_STRUCTURE_FIELDS = ['basic', 'hra', 'conveyance', 'specialAllowance', 'otherAllowance', 'bonus', 'incentive', 'otherEarnings', 'tax', 'loan', 'advance', 'otherDeduction'];
+
+        function openSalaryStructureModal() {
+            const id = calendarViewEmpId;
+            const employee = employees.find(item => String(item.id) === String(id));
+            if (!employee) return;
+            document.getElementById('salaryStructureEmployeeId').value = employee.id;
+            document.getElementById('salaryStructureEmployeeName').textContent = `${employee.name} (${employee.empCode || employee.id})`;
+            document.getElementById('ss_effectiveFrom').value = new Date().toISOString().slice(0, 10);
+            SALARY_STRUCTURE_FIELDS.forEach(field => { document.getElementById('ss_' + field).value = 0; });
+            document.getElementById('ss_note').value = '';
+            const modal = document.getElementById('salaryStructureModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function closeSalaryStructureModal() {
+            const modal = document.getElementById('salaryStructureModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+
+        async function handleSalaryStructureFormSubmit(event) {
+            event.preventDefault();
+            const employeeId = document.getElementById('salaryStructureEmployeeId').value;
+            const payload = { effectiveFrom: document.getElementById('ss_effectiveFrom').value, note: document.getElementById('ss_note').value };
+            SALARY_STRUCTURE_FIELDS.forEach(field => { payload[field] = Number(document.getElementById('ss_' + field).value) || 0; });
+            try {
+                const response = await fetch(`/api/employees/${employeeId}/salary-history`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to save salary revision');
+                }
+                closeSalaryStructureModal();
+                await loadEmployeeSalaryHistory(employeeId, true);
+                const employee = employees.find(item => String(item.id) === String(employeeId));
+                if (employee) renderSalaryBreakdown(employee);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function loadEmployeeSalaryHistory(employeeId, force) {
+            const tbody = document.getElementById('salaryHistoryBody');
+            if (!tbody) return;
+            if (!force && tbody.dataset.empId === String(employeeId)) return;
+            tbody.dataset.empId = String(employeeId);
+            const rows = await fetch(`/api/employees/${employeeId}/salary-history`).then(r => r.ok ? r.json() : []);
+            const todayKey = new Date().toISOString().slice(0, 10);
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-400 text-sm">No salary revisions recorded yet — payroll falls back to the legacy base salary.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(row => {
+                const allowances = Number(row.conveyance || 0) + Number(row.specialAllowance || 0) + Number(row.otherAllowance || 0);
+                const deductions = Number(row.tax || 0) + Number(row.loan || 0) + Number(row.advance || 0) + Number(row.otherDeduction || 0);
+                const isFuture = row.effectiveFrom > todayKey;
+                return `<tr>
+                    <td class="px-4 py-2.5">${row.effectiveFrom}${isFuture ? ' <span class="text-[10px] text-indigo-600 font-bold uppercase">(upcoming)</span>' : ''}</td>
+                    <td class="px-4 py-2.5 text-right">₹${Number(row.basic || 0).toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">₹${Number(row.hra || 0).toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">₹${Number(row.conveyance || 0).toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">₹${allowances.toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">₹${(Number(row.bonus || 0) + Number(row.incentive || 0)).toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">₹${deductions.toLocaleString('en-IN')}</td>
+                    <td class="px-4 py-2.5 text-right">${isFuture ? `<button onclick="deleteSalaryHistoryEntry('${employeeId}', '${row.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>` : ''}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function deleteSalaryHistoryEntry(employeeId, historyId) {
+            if (!confirm('Delete this upcoming salary revision?')) return;
+            try {
+                const response = await fetch(`/api/employees/${employeeId}/salary-history/${historyId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to delete salary revision');
+                }
+                await loadEmployeeSalaryHistory(employeeId, true);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
 
         function closeModal() {
             const modal = document.getElementById('employeeModal');
@@ -2785,6 +3003,8 @@
             if (tabName === 'Users') loadRbacData();
             if (tabName === 'Roles') loadRbacData();
             if (tabName === 'Branch' || tabName === 'Department') loadBranchesAndDepartments(true);
+            if (tabName === 'Salary') loadStatutoryComponents(true);
+            if (tabName === 'PayrollSetup') loadPayrollSetup();
             document.querySelectorAll('.settings-tab-btn').forEach(btn => {
                 btn.classList.remove('border-indigo-600', 'text-indigo-600', 'font-semibold');
                 btn.classList.add('border-transparent', 'text-gray-500', 'font-medium');
@@ -2841,9 +3061,41 @@
                 </tr>
             `).join('');
 
-            // Render Salary Structure
+        }
+
+        let systemStatutoryComponents = [];
+        let statutoryDataLoaded = false;
+
+        async function loadStatutoryComponents(force = false) {
+            if (statutoryDataLoaded && !force) return;
+            try {
+                const res = await fetch('/api/statutory-components');
+                if (res.ok) systemStatutoryComponents = await res.json();
+                statutoryDataLoaded = true;
+                renderStatutoryComponentsTable();
+            } catch (error) {
+                console.error('Unable to load statutory components', error);
+            }
+        }
+
+        // Each edit inserts a new versioned row sharing componentKey rather than mutating
+        // the old one (so an already-generated month's payroll is never retroactively
+        // changed) — this picks the latest active version per key for display.
+        function latestStatutoryComponentsByKey() {
+            const latestByKey = new Map();
+            systemStatutoryComponents.forEach(row => {
+                if (!row.componentKey) return;
+                const effectiveFrom = row.effectiveFrom || '';
+                const existing = latestByKey.get(row.componentKey);
+                if (!existing || effectiveFrom >= (existing.effectiveFrom || '')) latestByKey.set(row.componentKey, row);
+            });
+            return Array.from(latestByKey.values()).filter(row => row.isActive !== false);
+        }
+
+        function renderStatutoryComponentsTable() {
             const salaryBody = document.getElementById('salaryComponentTableBody');
-            salaryBody.innerHTML = (settingsData.salaryComponents || []).map(c => `
+            if (!salaryBody) return;
+            salaryBody.innerHTML = latestStatutoryComponentsByKey().map(c => `
                 <tr class="hover:bg-gray-50">
                     <td class="px-4 py-2.5 font-medium text-gray-800">${c.name}</td>
                     <td class="px-4 py-2.5 text-xs">
@@ -2851,13 +3103,78 @@
                     </td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${c.calcType === 'Percentage' ? '% of Basic' : 'Fixed Amount'}</td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${c.calcType === 'Percentage' ? c.value + '%' : '₹' + c.value}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${c.effectiveFrom || 'Always'}</td>
                     <td class="px-4 py-2.5 text-right space-x-2">
-                        <button onclick="openSalaryComponentModal(${c.id})" class="text-indigo-600 hover:text-indigo-900"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteSettingsItem('salaryComponents', ${c.id})" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="openSalaryComponentModal('${c.componentKey}')" class="text-indigo-600 hover:text-indigo-900"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteStatutoryComponent('${c.componentKey}')" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
+        }
 
+        async function handleStatutoryComponentFormSubmit(componentKey) {
+            const payload = {
+                name: document.getElementById('set_name').value,
+                type: document.getElementById('set_comp_type').value,
+                calcType: document.getElementById('set_calc_type').value,
+                value: Number(document.getElementById('set_value').value || 0),
+                effectiveFrom: document.getElementById('set_effectiveFrom').value || undefined,
+            };
+            const response = await fetch(componentKey ? `/api/statutory-components/${componentKey}` : '/api/statutory-components', {
+                method: componentKey ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                let message = 'Failed to save salary component';
+                try { message = (await response.json()).error || message; } catch (error) { /* keep generic message */ }
+                throw new Error(message);
+            }
+            await loadStatutoryComponents(true);
+        }
+
+        async function deleteStatutoryComponent(componentKey) {
+            if (!confirm('Deactivate this salary component? Past payroll that used it is unaffected.')) return;
+            try {
+                const response = await fetch(`/api/statutory-components/${componentKey}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to remove salary component');
+                }
+                await loadStatutoryComponents(true);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function loadPayrollSetup() {
+            try {
+                const setup = await fetch('/api/payroll-setup').then(r => r.json());
+                document.getElementById('pls_frequency').value = setup.frequency;
+                document.getElementById('pls_calcMethod').value = setup.calcMethod;
+                document.getElementById('pls_overtimeMultiplier').value = setup.overtimeMultiplier;
+            } catch (error) {
+                console.error('Unable to load payroll setup', error);
+            }
+        }
+
+        async function savePayrollSetup(event) {
+            event.preventDefault();
+            const payload = {
+                frequency: document.getElementById('pls_frequency').value,
+                calcMethod: document.getElementById('pls_calcMethod').value,
+                overtimeMultiplier: Number(document.getElementById('pls_overtimeMultiplier').value || 1.5),
+            };
+            try {
+                const response = await fetch('/api/payroll-setup', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Failed to save payroll setup');
+            } catch (error) {
+                alert(error.message);
+            }
         }
 
         function renderUsersTable() {
@@ -3020,33 +3337,38 @@
             modal.style.display = 'flex';
         }
 
-        function openSalaryComponentModal(id = null) {
-            const item = id ? settingsData.salaryComponents.find(c => c.id === id) : null;
-            document.getElementById('settingsModalTitle').innerText = id ? 'Edit Salary Component' : 'Add Salary Component';
-            document.getElementById('settingsItemType').value = 'salaryComponents';
-            document.getElementById('settingsEditId').value = id || '';
+        function openSalaryComponentModal(componentKey = null) {
+            const item = componentKey ? latestStatutoryComponentsByKey().find(c => String(c.componentKey) === String(componentKey)) : null;
+            document.getElementById('settingsModalTitle').innerText = componentKey ? 'Edit Salary Component' : 'Add Salary Component';
+            document.getElementById('settingsItemType').value = 'statutoryComponents';
+            document.getElementById('settingsEditId').value = componentKey || '';
             document.getElementById('settingsFieldsContainer').innerHTML = `
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Component Name</label>
-                    <input type="text" id="set_name" required placeholder="e.g. Basic Salary" value="${item ? item.name : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_name" required placeholder="e.g. Provident Fund" value="${item ? item.name : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Type</label>
                     <select id="set_comp_type" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="Earning" ${item && item.type === 'Earning' ? 'selected' : ''}>Earning (Salary)</option>
-                        <option value="Deduction" ${item && item.type === 'Deduction' ? 'selected' : ''}>Deduction</option>
+                        <option value="Deduction" ${!item || item.type === 'Deduction' ? 'selected' : ''}>Deduction</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Calculation Type</label>
                     <select id="set_calc_type" onchange="updateSalaryValueLabel()" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="Fixed" ${!item || item.calcType === 'Fixed' ? 'selected' : ''}>Fixed Value (₹)</option>
-                        <option value="Percentage" ${item && item.calcType === 'Percentage' ? 'selected' : ''}>Percentage (%)</option>
+                        <option value="Percentage" ${item && item.calcType === 'Percentage' ? 'selected' : ''}>Percentage (% of Basic)</option>
                     </select>
                 </div>
                 <div>
                     <label id="set_value_label" class="block text-xs font-bold text-gray-600 uppercase mb-1">${item && item.calcType === 'Percentage' ? 'Value (%)' : 'Value (₹)'}</label>
                     <input type="number" step="0.01" min="0" id="set_value" required value="${item ? item.value : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Effective From${componentKey ? '' : ' (optional)'}</label>
+                    <input type="date" id="set_effectiveFrom" value="${componentKey ? new Date().toISOString().slice(0, 10) : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-[11px] text-gray-500 mt-1">${componentKey ? 'Applies from this date onward — months already generated before this date keep using the old rate.' : 'Leave blank to apply from the beginning.'}</p>
                 </div>
             `;
             const modal = document.getElementById('settingsModal');
@@ -3245,6 +3567,15 @@
                 closeSettingsModal();
                 return;
             }
+            if (type === 'statutoryComponents') {
+                try {
+                    await handleStatutoryComponentFormSubmit(editId);
+                } catch (error) {
+                    return alert(error.message);
+                }
+                closeSettingsModal();
+                return;
+            }
 
             let category = type;
             let name = '';
@@ -3262,18 +3593,6 @@
                     if (item) { item.title = title; item.start = start; item.end = end; item.hours = hours; item.graceMinutes = graceMinutes; }
                 } else {
                     settingsData.shifts.push({ id: Date.now(), title, start, end, hours, graceMinutes });
-                }
-            } else if (type === 'salaryComponents') {
-                name = document.getElementById('set_name').value;
-                const compType = document.getElementById('set_comp_type').value;
-                const calcType = document.getElementById('set_calc_type').value;
-                const value = Number(document.getElementById('set_value').value || 0);
-                category = 'salaryComponent'; values = { type: compType, calcType, value };
-                if (editId) {
-                    const item = settingsData.salaryComponents.find(c => c.id == editId);
-                    if (item) { item.name = name; item.type = compType; item.calcType = calcType; item.value = value; }
-                } else {
-                    settingsData.salaryComponents.push({ id: Date.now(), name, type: compType, calcType, value });
                 }
             }
 

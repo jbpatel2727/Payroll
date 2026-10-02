@@ -74,6 +74,46 @@ model Department {
   head       String?
 }
 
+// Effective-dated salary revisions for an employee. Append-only — an edit is a
+// new row with a new effectiveFrom, never a mutation, so a raise on 01/10
+// never retroactively changes already-generated September payroll.
+model EmployeeSalaryHistory {
+  id               String  @id @map("_id")
+  employeeId       String?
+  effectiveFrom    String?
+  basic            Float?
+  hra              Float?
+  conveyance       Float?
+  specialAllowance Float?
+  otherAllowance   Float?
+  bonus            Float?
+  incentive        Float?
+  otherEarnings    Float?
+  tax              Float?
+  loan             Float?
+  advance          Float?
+  otherDeduction   Float?
+  note             String?
+  createdBy        String?
+  createdAt        String?
+}
+
+// Global statutory deduction/earning components (e.g. PF, ESI, Professional
+// Tax). Same append-only, effective-dated pattern as EmployeeSalaryHistory —
+// componentKey groups versions of "the same" component across edits; a
+// "delete" inserts a new isActive:false version rather than removing history.
+model StatutoryComponent {
+  id            String   @id @map("_id")
+  componentKey  String?
+  name          String?
+  type          String?
+  calcType      String?
+  value         Float?
+  effectiveFrom String?
+  isActive      Boolean? @default(true)
+  createdAt     String?
+}
+
 model Employee {
   id                 String  @id @map("_id")
   empCode            String?
@@ -150,6 +190,20 @@ model PayrollRecord {
   netPay              Float?
   netSalary           Float?
   branchAllocation    Json?
+  hra                         Float?
+  conveyance                  Float?
+  specialAllowance            Float?
+  otherAllowance              Float?
+  bonus                       Float?
+  incentive                   Float?
+  otherEarnings               Float?
+  tax                         Float?
+  loan                        Float?
+  advance                     Float?
+  otherDeduction              Float?
+  statutoryDeductionBreakdown Json?
+  salaryStructureId           String?
+  calcMethod                  String?
 }
 
 model PayrollRun {

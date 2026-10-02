@@ -18,7 +18,7 @@ async function saveData(data) {
 }
 
 async function ensureCollections(data) {
-  ['branches', 'departments', 'employees', 'attendance', 'payroll', 'transfers', 'payrollRuns', 'expenses', 'settings'].forEach(key => {
+  ['branches', 'departments', 'employees', 'attendance', 'payroll', 'transfers', 'payrollRuns', 'expenses', 'settings', 'employeeSalaryHistory', 'statutoryComponents'].forEach(key => {
     if (!Array.isArray(data[key])) data[key] = [];
   });
   let changed = false;
@@ -554,6 +554,122 @@ app.post('/api/employees/delete', authorize('employees.edit'), asyncHandler(asyn
   res.json({ message: 'Employee deleted' });
 }));
 
+// Employee salary structure is effective-dated, append-only history (not the generic
+// loadDb()/saveCollection() whole-array-replace pattern used elsewhere) — a row is never
+// mutated or bulk-rewritten, since that could retroactively change already-generated
+// payroll. Only a strictly future-dated (not-yet-effective) row may be deleted.
+const { calculateEmployeePayroll, resolveSalaryStructure, resolveStatutoryComponents, getTotalWorkingDays, dedupeAttendanceByDate } = require('./payrollCalculator');
+const SALARY_STRUCTURE_FIELDS = ['basic', 'hra', 'conveyance', 'specialAllowance', 'otherAllowance', 'bonus', 'incentive', 'otherEarnings', 'tax', 'loan', 'advance', 'otherDeduction'];
+
+app.get('/api/employees/:id/salary-history', authorize('employees.viewSalary'), asyncHandler(async (req, res) => {
+  const rows = await prisma.employeeSalaryHistory.findMany({ where: { employeeId: String(req.params.id) } });
+  rows.sort((a, b) => (b.effectiveFrom || '').localeCompare(a.effectiveFrom || ''));
+  res.json(rows);
+}));
+
+app.post('/api/employees/:id/salary-history', authorize('employees.manageSalary'), asyncHandler(async (req, res) => {
+  const employeeId = String(req.params.id);
+  const db = await loadDb();
+  const employee = db.employees.find(item => String(item.id) === employeeId);
+  if (!employee) return res.status(404).json({ error: 'Employee not found' });
+  const { effectiveFrom, note } = req.body;
+  if (!effectiveFrom || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom)) return res.status(400).json({ error: 'effectiveFrom must be a YYYY-MM-DD date' });
+  if (employee.dateOfJoining && effectiveFrom < employee.dateOfJoining) return res.status(400).json({ error: "effectiveFrom cannot be before the employee's joining date" });
+  const duplicate = await prisma.employeeSalaryHistory.findFirst({ where: { employeeId, effectiveFrom } });
+  if (duplicate) return res.status(400).json({ error: `A salary structure effective ${effectiveFrom} already exists for this employee` });
+  const data = { id: String(Date.now() + Math.random()), employeeId, effectiveFrom, note: note || '', createdBy: req.currentUser.username, createdAt: new Date().toISOString() };
+  SALARY_STRUCTURE_FIELDS.forEach(field => { data[field] = number(req.body[field]); });
+  const row = await prisma.employeeSalaryHistory.create({ data });
+  res.status(201).json(row);
+}));
+
+app.delete('/api/employees/:id/salary-history/:historyId', authorize('employees.manageSalary'), asyncHandler(async (req, res) => {
+  const row = await prisma.employeeSalaryHistory.findUnique({ where: { id: req.params.historyId } });
+  if (!row || String(row.employeeId) !== String(req.params.id)) return res.status(404).json({ error: 'Salary history entry not found' });
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (!row.effectiveFrom || row.effectiveFrom <= todayKey) return res.status(400).json({ error: 'Only future-dated salary revisions can be deleted' });
+  await prisma.employeeSalaryHistory.delete({ where: { id: row.id } });
+  res.json({ message: 'Salary history entry deleted' });
+}));
+
+// Global statutory deduction components (e.g. PF/ESI/Professional Tax) — same
+// append-only, effective-dated versioning as salary history, grouped by componentKey.
+// "Editing" inserts a new version; "deleting" inserts an isActive:false version, so
+// resolution for an already-generated month is never affected by a later change.
+app.get('/api/statutory-components', authorize('settings.view'), asyncHandler(async (req, res) => {
+  const rows = await prisma.statutoryComponent.findMany();
+  rows.sort((a, b) => (b.effectiveFrom || '').localeCompare(a.effectiveFrom || ''));
+  res.json(rows);
+}));
+
+app.post('/api/statutory-components', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const { name, type, calcType, value, effectiveFrom } = req.body;
+  if (!name || !type || !calcType) return res.status(400).json({ error: 'Name, type, and calculation type are required' });
+  const row = await prisma.statutoryComponent.create({
+    data: {
+      id: String(Date.now() + Math.random()), componentKey: String(Date.now() + Math.random()),
+      name, type, calcType, value: number(value), effectiveFrom: effectiveFrom || null,
+      isActive: true, createdAt: new Date().toISOString(),
+    },
+  });
+  res.status(201).json(row);
+}));
+
+app.put('/api/statutory-components/:componentKey', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const { componentKey } = req.params;
+  const latest = (await prisma.statutoryComponent.findMany({ where: { componentKey } }))
+    .sort((a, b) => (b.effectiveFrom || '').localeCompare(a.effectiveFrom || ''))[0];
+  if (!latest) return res.status(404).json({ error: 'Statutory component not found' });
+  const { name, type, calcType, value, effectiveFrom } = req.body;
+  const row = await prisma.statutoryComponent.create({
+    data: {
+      id: String(Date.now() + Math.random()), componentKey,
+      name: name ?? latest.name, type: type ?? latest.type, calcType: calcType ?? latest.calcType,
+      value: number(value ?? latest.value), effectiveFrom: effectiveFrom || new Date().toISOString().slice(0, 10),
+      isActive: true, createdAt: new Date().toISOString(),
+    },
+  });
+  res.status(201).json(row);
+}));
+
+app.delete('/api/statutory-components/:componentKey', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const { componentKey } = req.params;
+  const latest = (await prisma.statutoryComponent.findMany({ where: { componentKey } }))
+    .sort((a, b) => (b.effectiveFrom || '').localeCompare(a.effectiveFrom || ''))[0];
+  if (!latest) return res.status(404).json({ error: 'Statutory component not found' });
+  await prisma.statutoryComponent.create({
+    data: {
+      id: String(Date.now() + Math.random()), componentKey, name: latest.name, type: latest.type, calcType: latest.calcType,
+      value: latest.value, effectiveFrom: req.body.effectiveFrom || new Date().toISOString().slice(0, 10),
+      isActive: false, createdAt: new Date().toISOString(),
+    },
+  });
+  res.json({ message: 'Statutory component deactivated' });
+}));
+
+// Payroll Setup — a single global config row, stored via the generic Setting model but
+// exposed only through this dedicated endpoint (never the generic /api/settings CRUD).
+const PAYROLL_SETUP_DEFAULTS = { frequency: 'Monthly', calcMethod: 'workingDays', overtimeMultiplier: 1.5 };
+
+app.get('/api/payroll-setup', authorize('settings.view'), asyncHandler(async (req, res) => {
+  const row = await prisma.setting.findFirst({ where: { category: 'payrollSetup', name: 'default' } });
+  res.json({ ...PAYROLL_SETUP_DEFAULTS, ...(row?.values || {}) });
+}));
+
+app.put('/api/payroll-setup', authorize('settings.edit'), asyncHandler(async (req, res) => {
+  const { frequency, calcMethod, overtimeMultiplier } = req.body;
+  const values = {
+    frequency: frequency || PAYROLL_SETUP_DEFAULTS.frequency,
+    calcMethod: calcMethod || PAYROLL_SETUP_DEFAULTS.calcMethod,
+    overtimeMultiplier: number(overtimeMultiplier, PAYROLL_SETUP_DEFAULTS.overtimeMultiplier),
+  };
+  const existing = await prisma.setting.findFirst({ where: { category: 'payrollSetup', name: 'default' } });
+  const row = existing
+    ? await prisma.setting.update({ where: { id: existing.id }, data: { values } })
+    : await prisma.setting.create({ data: { category: 'payrollSetup', name: 'default', values, createdAt: new Date().toISOString() } });
+  res.json(row.values);
+}));
+
 app.get('/api/transfers', authorize('transfers.view'), asyncHandler(async (req, res) => {
   res.json((await loadDb()).transfers);
 }));
@@ -685,70 +801,49 @@ app.get('/api/payroll', authorize('payroll.view'), asyncHandler(async (req, res)
 }));
 
 app.post('/api/payroll/generate', authorize('payroll.generate'), asyncHandler(async (req, res) => {
-  const { month, workingDays, overtimeMultiplier = 1.5, statutoryDeductions = 0, gazettedHolidays = 0 } = req.body;
+  const { month, workingDays, overtimeMultiplier, gazettedHolidays = 0 } = req.body;
   if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'Month must use YYYY-MM format' });
   const db = await loadDb();
-  const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
-  const totalWorkingDays = number(workingDays, Array.from({ length: daysInMonth }, (_, index) => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, index + 1).getDay()).filter(day => day !== 0 && day !== 6).length);
+  const { start: monthStart, end: monthEnd } = monthBounds(month);
+  const setupRow = await prisma.setting.findFirst({ where: { category: 'payrollSetup', name: 'default' } });
+  const setup = { frequency: 'Monthly', calcMethod: 'workingDays', overtimeMultiplier: 1.5, ...(setupRow?.values || {}) };
+  const effectiveOvertimeMultiplier = number(overtimeMultiplier, setup.overtimeMultiplier);
+  const companyWideWorkingDays = workingDays !== undefined ? getTotalWorkingDays(month, setup.calcMethod, workingDays) : null;
+  const statutoryComponents = resolveStatutoryComponents(db.statutoryComponents, month);
   const exceptions = [];
-  const generatedPayrolls = db.employees.map(emp => {
-    const grossMonthly = employeeGross(emp);
-    const perDayRate = grossMonthly / Math.max(totalWorkingDays, 1);
-    const transfer = getEmployeeTransfer(db, emp.id, month);
-    const attendance = db.attendance.filter(record => String(record.empId) === String(emp.id)).filter(record => inMonth(record.date, month) && dateInRange(record.date, emp.dateOfJoining, emp.relievingDate));
-    if (!attendance.length) addException(exceptions, 'Missing attendance', `${emp.name} (${emp.empCode || emp.id}) has no attendance records for ${month}`, emp.id);
-    if (transfer && transfer.status !== 'Approved') addException(exceptions, 'Unapproved transfer', `${emp.name} (${emp.empCode || emp.id}) has an unapproved transfer`, emp.id);
 
-    const transferDate = transfer?.effectiveDate;
-    const sourceRecords = attendance.filter(record => !transferDate || record.date < transferDate);
-    const targetRecords = transfer ? attendance.filter(record => record.date >= transferDate) : [];
-    const summarize = records => {
-      const worked = records.reduce((sum, record) => sum + number(record.daysWorked, record.status === 'Present' ? 1 : record.status === 'Half Day' ? 0.5 : 0), 0);
-      const paidLeave = records.reduce((sum, record) => sum + number(record.paidLeave), 0);
-      const holidays = records.reduce((sum, record) => sum + number(record.gazettedHoliday), 0);
-      const lwp = records.reduce((sum, record) => sum + number(record.unpaidLeave) + (record.status === 'Absent' ? 1 : 0), 0);
-      const overtimeHours = records.reduce((sum, record) => sum + number(record.overtimeHours || record.extraHours), 0);
-      return { worked, paidLeave, holidays, lwp, overtimeHours };
-    };
-    const source = summarize(sourceRecords);
-    const target = summarize(targetRecords);
-    const payableDays = source.worked + source.paidLeave + source.holidays + target.worked + target.paidLeave + target.holidays + number(gazettedHolidays);
-    const lopDays = Math.max(0, totalWorkingDays - payableDays);
-    const sourceDays = transfer ? Math.max(0, Math.round((new Date(transferDate) - new Date(`${month}-01`)) / 86400000)) : totalWorkingDays;
-    const targetDays = transfer ? totalWorkingDays - sourceDays : 0;
-    const holidaySource = transfer ? Math.min(number(gazettedHolidays), sourceDays) : number(gazettedHolidays);
-    const holidayTarget = transfer ? Math.max(0, number(gazettedHolidays) - holidaySource) : 0;
-    const sourceGross = Math.round(perDayRate * Math.min(sourceDays, source.worked + source.paidLeave + source.holidays + holidaySource));
-    const targetGross = Math.round(perDayRate * Math.min(targetDays, target.worked + target.paidLeave + target.holidays + holidayTarget));
-    const relocation = transfer ? number(transfer.relocationAllowance) : 0;
-    const salaryRevision = transfer ? number(transfer.salaryRevision) : 0;
-    const overtimeHours = source.overtimeHours + target.overtimeHours;
-    const hourlyRate = perDayRate / 8;
-    const overtimePay = Math.round(overtimeHours * hourlyRate * number(overtimeMultiplier, 1.5));
-    const lopDeduction = Math.round(lopDays * perDayRate);
-    const statutory = number(statutoryDeductions);
-    const grossPay = sourceGross + targetGross + overtimePay + relocation + salaryRevision;
-    const deductions = lopDeduction + statutory;
-    const netPay = Math.max(0, grossPay - deductions);
-    if (netPay < 0) addException(exceptions, 'Negative net pay', `${emp.name} (${emp.empCode || emp.id}) calculated a negative net pay`, emp.id);
-    if (transfer && !sourceRecords.length) addException(exceptions, 'Missing source attendance', `${emp.name} (${emp.empCode || emp.id}) has no source-branch attendance before ${transfer.effectiveDate}`, emp.id);
-    if (transfer && !targetRecords.length) addException(exceptions, 'Missing target attendance', `${emp.name} (${emp.empCode || emp.id}) has no target-branch attendance from ${transfer.effectiveDate}`, emp.id);
-    return {
-      id: Date.now() + Math.random(), empId: emp.id, empName: emp.name, empCode: emp.empCode || '', month,
-      sourceBranch: transfer?.sourceBranch || emp.branchCode || '-', targetBranch: transfer?.targetBranch || emp.branchCode || '-',
-      transferDate: transfer?.effectiveDate || '', daysSource: source.worked + source.paidLeave + source.holidays, daysTarget: target.worked + target.paidLeave + target.holidays,
-      totalWorkingDays, payableDays, lopDays, baseSalary: grossMonthly, sourceGross, targetGross,
-      overtimeHours, overtimePay, relocationAllowance: relocation, salaryRevision, grossPay, deductions,
-      lopDeduction, statutoryDeductions: statutory, netPay, netSalary: netPay,
-      branchAllocation: [{ branch: transfer?.sourceBranch || emp.branchCode || '-', amount: sourceGross }, ...(transfer ? [{ branch: transfer.targetBranch, amount: targetGross + relocation + salaryRevision }] : [])]
-    };
-  });
+  const generatedPayrolls = db.employees.map(emp => {
+    if (emp.dateOfJoining && emp.dateOfJoining > monthEnd) { addException(exceptions, 'Employee inactive', `${emp.name} (${emp.empCode || emp.id}) joins after ${month} — skipped`, emp.id); return null; }
+    if (emp.relievingDate && emp.relievingDate < monthStart) { addException(exceptions, 'Employee inactive', `${emp.name} (${emp.empCode || emp.id}) was relieved before ${month} — skipped`, emp.id); return null; }
+
+    let salaryStructure = resolveSalaryStructure(db.employeeSalaryHistory, emp.id, month);
+    if (!salaryStructure) {
+      salaryStructure = { basic: employeeGross(emp) };
+      addException(exceptions, 'Missing salary structure', `${emp.name} (${emp.empCode || emp.id}) has no effective-dated salary structure for ${month} — using legacy base salary`, emp.id);
+    }
+
+    const rawAttendance = db.attendance.filter(record => String(record.empId) === String(emp.id)).filter(record => inMonth(record.date, month) && dateInRange(record.date, emp.dateOfJoining, emp.relievingDate));
+    const { deduped: attendance, duplicateDates } = dedupeAttendanceByDate(rawAttendance);
+    if (duplicateDates.length) addException(exceptions, 'Duplicate attendance', `${emp.name} (${emp.empCode || emp.id}) has duplicate attendance entries for ${duplicateDates.join(', ')} — using the most recent entry`, emp.id);
+
+    const transfer = getEmployeeTransfer(db, emp.id, month);
+    const totalWorkingDays = companyWideWorkingDays ?? getTotalWorkingDays(month, setup.calcMethod, undefined, attendance.length);
+
+    const result = calculateEmployeePayroll({
+      employee: emp, salaryStructure, statutoryComponents, attendance, transfer, month,
+      totalWorkingDays, overtimeMultiplier: effectiveOvertimeMultiplier, gazettedHolidays,
+    });
+    exceptions.push(...result.exceptions);
+    const { exceptions: _omit, ...record } = result;
+    return { id: Date.now() + Math.random(), calcMethod: setup.calcMethod, ...record };
+  }).filter(Boolean);
+
   db.payroll = db.payroll.filter(record => record.month !== month).concat(generatedPayrolls);
   db.payrollRuns = db.payrollRuns.filter(run => run.month !== month);
-  db.payrollRuns.push({ id: Date.now(), month, workingDays: totalWorkingDays, generatedAt: new Date().toISOString(), exceptions });
+  db.payrollRuns.push({ id: Date.now(), month, workingDays: companyWideWorkingDays || generatedPayrolls[0]?.totalWorkingDays || 0, generatedAt: new Date().toISOString(), exceptions });
   await saveCollection('payroll', db.payroll);
   await saveCollection('payrollRuns', db.payrollRuns);
-  res.status(201).json({ month, workingDays: totalWorkingDays, records: generatedPayrolls, exceptions });
+  res.status(201).json({ month, records: generatedPayrolls, exceptions });
 }));
 
 // --- 6. REPORT API ---
