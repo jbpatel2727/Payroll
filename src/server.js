@@ -356,12 +356,13 @@ app.post('/api/departments', authorize('departments.edit'), asyncHandler(async (
 }));
 
 app.post('/api/departments/update', authorize('departments.edit'), asyncHandler(async (req, res) => {
-  const { id, name, branchCode } = req.body;
+  const { id, name, branchCode, head } = req.body;
   const db = await loadData();
   const d = (db.departments || []).find(item => String(item.id) === String(id));
   if (d) {
     d.name = name;
     d.branchCode = branchCode;
+    if (head !== undefined) d.head = head;
     await saveCollection('departments', db.departments);
     return res.json({ message: 'Department updated successfully' });
   }
@@ -811,7 +812,7 @@ app.delete('/api/branches/:id', authorize('branches.edit'), asyncHandler(async (
 app.put('/api/departments/:id', authorize('departments.edit'), asyncHandler(async (req, res) => {
   const db = await loadDb(); const department = db.departments.find(item => String(item.id) === String(req.params.id));
   if (!department) return res.status(404).json({ error: 'Department not found' });
-  Object.assign(department, { name: req.body.name ?? department.name, branchCode: req.body.branchCode ?? department.branchCode });
+  Object.assign(department, { name: req.body.name ?? department.name, branchCode: req.body.branchCode ?? department.branchCode, head: req.body.head ?? department.head });
   await saveCollection('departments', db.departments); res.json(department);
 }));
 

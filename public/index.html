@@ -1137,6 +1137,31 @@
             }
         }
 
+        // Branches/departments used to also be editable through the generic settings
+        // collection (category: 'branch'/'department') — a parallel copy that the rest of
+        // the app (employees, attendance, payroll) never actually read, so edits made here
+        // silently went nowhere. These now talk to the real /api/branches and
+        // /api/departments endpoints directly, same pattern as systemUsers/systemRoles above.
+        let systemBranches = [];
+        let systemDepartments = [];
+        let branchDataLoaded = false;
+
+        async function loadBranchesAndDepartments(force = false) {
+            if (branchDataLoaded && !force) return;
+            try {
+                const [branchesRes, departmentsRes] = await Promise.all([
+                    fetch('/api/branches'),
+                    fetch('/api/departments')
+                ]);
+                if (branchesRes.ok) systemBranches = await branchesRes.json();
+                if (departmentsRes.ok) systemDepartments = await departmentsRes.json();
+                branchDataLoaded = true;
+                renderSettingsTables();
+            } catch (error) {
+                console.error('Unable to load branches/departments', error);
+            }
+        }
+
         function saveLocalState() {
             try {
                 localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
@@ -2716,6 +2741,7 @@
             else if (pageName === 'Employees') pageTitle.innerText = 'Employees Directory';
             else if (pageName === 'Attendance') pageTitle.innerText = 'Attendance Management Log';
             else if (pageName === 'Reports') { pageTitle.innerText = 'Reports & Analytics'; renderEmployeeReports(); }
+            else if (pageName === 'Settings') { pageTitle.innerText = 'Settings Section'; loadBranchesAndDepartments(); }
             else pageTitle.innerText = pageName + ' Section';
 
             document.querySelectorAll('.page-content').forEach(content => content.classList.add('hidden'));
@@ -2758,6 +2784,7 @@
             if (btnElement && btnElement.dataset.permission && !hasPermission(btnElement.dataset.permission)) return;
             if (tabName === 'Users') loadRbacData();
             if (tabName === 'Roles') loadRbacData();
+            if (tabName === 'Branch' || tabName === 'Department') loadBranchesAndDepartments(true);
             document.querySelectorAll('.settings-tab-btn').forEach(btn => {
                 btn.classList.remove('border-indigo-600', 'text-indigo-600', 'font-semibold');
                 btn.classList.add('border-transparent', 'text-gray-500', 'font-medium');
@@ -2772,28 +2799,28 @@
         function renderSettingsTables() {
             // Render Branch
             const branchBody = document.getElementById('branchTableBody');
-            branchBody.innerHTML = settingsData.branches.map(b => `
+            branchBody.innerHTML = systemBranches.map(b => `
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2.5 font-medium text-gray-800">${b.name}</td>
-                    <td class="px-4 py-2.5 text-xs text-gray-500">${b.code}</td>
-                    <td class="px-4 py-2.5 text-xs text-gray-500">${b.location}</td>
+                    <td class="px-4 py-2.5 font-medium text-gray-800">${b.name || ''}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${b.code || ''}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${b.address || ''}</td>
                     <td class="px-4 py-2.5 text-right space-x-2">
                         <button onclick="openBranchModal(${b.id})" class="text-indigo-600 hover:text-indigo-900"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteSettingsItem('branches', ${b.id})" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="deleteSystemBranch(${b.id})" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
 
             // Render Department
             const deptBody = document.getElementById('departmentTableBody');
-            deptBody.innerHTML = settingsData.departments.map(d => `
+            deptBody.innerHTML = systemDepartments.map(d => `
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2.5 font-medium text-gray-800">${d.name}</td>
+                    <td class="px-4 py-2.5 font-medium text-gray-800">${d.name || ''}</td>
                     <td class="px-4 py-2.5 text-xs text-gray-500">${getBranchLabel(d.branchCode)}</td>
-                    <td class="px-4 py-2.5 text-xs text-gray-500">${d.head}</td>
+                    <td class="px-4 py-2.5 text-xs text-gray-500">${d.head || ''}</td>
                     <td class="px-4 py-2.5 text-right space-x-2">
                         <button onclick="openDepartmentModal(${d.id})" class="text-indigo-600 hover:text-indigo-900"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteSettingsItem('departments', ${d.id})" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="deleteSystemDepartment(${d.id})" class="text-red-600 hover:text-red-900"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -2904,22 +2931,22 @@
         }
 
         function openBranchModal(id = null) {
-            const item = id ? settingsData.branches.find(b => b.id === id) : null;
+            const item = id ? systemBranches.find(b => String(b.id) === String(id)) : null;
             document.getElementById('settingsModalTitle').innerText = id ? 'Edit Branch' : 'Add Branch';
             document.getElementById('settingsItemType').value = 'branches';
             document.getElementById('settingsEditId').value = id || '';
             document.getElementById('settingsFieldsContainer').innerHTML = `
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Branch Name</label>
-                    <input type="text" id="set_name" required value="${item ? item.name : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_name" required value="${item ? item.name || '' : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Code</label>
-                    <input type="text" id="set_code" required value="${item ? item.code : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_code" required value="${item ? item.code || '' : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Location</label>
-                    <input type="text" id="set_location" required value="${item ? item.location : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_location" required value="${item ? item.address || '' : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
             `;
             const modal = document.getElementById('settingsModal');
@@ -2929,30 +2956,30 @@
         }
 
         function getBranchLabel(branchCode) {
-            const branch = (settingsData.branches || []).find(b => b.code === branchCode);
+            const branch = (systemBranches || []).find(b => b.code === branchCode);
             return branch ? `${branch.name} (${branch.code})` : (branchCode || '-');
         }
 
         function openDepartmentModal(id = null) {
-            const item = id ? settingsData.departments.find(d => d.id === id) : null;
+            const item = id ? systemDepartments.find(d => String(d.id) === String(id)) : null;
             document.getElementById('settingsModalTitle').innerText = id ? 'Edit Department' : 'Add Department';
             document.getElementById('settingsItemType').value = 'departments';
             document.getElementById('settingsEditId').value = id || '';
             document.getElementById('settingsFieldsContainer').innerHTML = `
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Department Name</label>
-                    <input type="text" id="set_name" required value="${item ? item.name : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_name" required value="${item ? item.name || '' : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Branch</label>
                     <select id="set_branch" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Branch</option>
-                        ${(settingsData.branches || []).map(b => `<option value="${b.code}" ${item && item.branchCode === b.code ? 'selected' : ''}>${b.name} (${b.code})</option>`).join('')}
+                        ${(systemBranches || []).map(b => `<option value="${b.code}" ${item && item.branchCode === b.code ? 'selected' : ''}>${b.name} (${b.code})</option>`).join('')}
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Department Head</label>
-                    <input type="text" id="set_head" required value="${item ? item.head : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <input type="text" id="set_head" required value="${item ? item.head || '' : ''}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
             `;
             const modal = document.getElementById('settingsModal');
@@ -3117,16 +3144,101 @@
             }
         }
 
+        async function handleBranchFormSubmit(editId) {
+            const payload = {
+                name: document.getElementById('set_name').value,
+                code: document.getElementById('set_code').value,
+                address: document.getElementById('set_location').value,
+            };
+            const response = await fetch(editId ? `/api/branches/${editId}` : '/api/branches', {
+                method: editId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                let message = 'Failed to save branch';
+                try { message = (await response.json()).error || message; } catch (error) { /* keep generic message */ }
+                throw new Error(message);
+            }
+            await loadBranchesAndDepartments(true);
+        }
+
+        async function deleteSystemBranch(id) {
+            if (!confirm('Delete this branch?')) return;
+            try {
+                const response = await fetch(`/api/branches/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to delete branch');
+                }
+                await loadBranchesAndDepartments(true);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleDepartmentFormSubmit(editId) {
+            const payload = {
+                name: document.getElementById('set_name').value,
+                branchCode: document.getElementById('set_branch').value,
+                head: document.getElementById('set_head').value,
+            };
+            const response = await fetch(editId ? `/api/departments/${editId}` : '/api/departments', {
+                method: editId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                let message = 'Failed to save department';
+                try { message = (await response.json()).error || message; } catch (error) { /* keep generic message */ }
+                throw new Error(message);
+            }
+            await loadBranchesAndDepartments(true);
+        }
+
+        async function deleteSystemDepartment(id) {
+            if (!confirm('Delete this department?')) return;
+            try {
+                const response = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Failed to delete department');
+                }
+                await loadBranchesAndDepartments(true);
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
         async function handleSettingsFormSubmit(e) {
             e.preventDefault();
             const type = document.getElementById('settingsItemType').value;
             const editId = document.getElementById('settingsEditId').value;
 
-            // System user accounts are Prisma-backed (/api/users), not part of the generic
-            // settings collection — handled separately from the branch/department/etc. flow below.
+            // System user accounts (/api/users), branches (/api/branches), and departments
+            // (/api/departments) are their own real collections, not part of the generic
+            // settings collection — handled separately from the shift/salary flow below.
             if (type === 'users') {
                 try {
                     await handleUserFormSubmit(editId);
+                } catch (error) {
+                    return alert(error.message);
+                }
+                closeSettingsModal();
+                return;
+            }
+            if (type === 'branches') {
+                try {
+                    await handleBranchFormSubmit(editId);
+                } catch (error) {
+                    return alert(error.message);
+                }
+                closeSettingsModal();
+                return;
+            }
+            if (type === 'departments') {
+                try {
+                    await handleDepartmentFormSubmit(editId);
                 } catch (error) {
                     return alert(error.message);
                 }
@@ -3138,29 +3250,7 @@
             let name = '';
             let values = {};
 
-            if (type === 'branches') {
-                name = document.getElementById('set_name').value;
-                const code = document.getElementById('set_code').value;
-                const location = document.getElementById('set_location').value;
-                category = 'branch'; values = { code, location };
-                if (editId) {
-                    const item = settingsData.branches.find(b => b.id == editId);
-                    if (item) { item.name = name; item.code = code; item.location = location; }
-                } else {
-                    settingsData.branches.push({ id: Date.now(), name, code, location });
-                }
-            } else if (type === 'departments') {
-                name = document.getElementById('set_name').value;
-                const branchCode = document.getElementById('set_branch').value;
-                const head = document.getElementById('set_head').value;
-                category = 'department'; values = { head, branchCode };
-                if (editId) {
-                    const item = settingsData.departments.find(d => d.id == editId);
-                    if (item) { item.name = name; item.head = head; item.branchCode = branchCode; }
-                } else {
-                    settingsData.departments.push({ id: Date.now(), name, head, branchCode });
-                }
-            } else if (type === 'shifts') {
+            if (type === 'shifts') {
                 const title = document.getElementById('set_title').value;
                 const start = document.getElementById('set_start').value;
                 const end = document.getElementById('set_end').value;

@@ -7,9 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Users/Roles/Permissions (Phase 1 RBAC) are the only data modeled here.
-// Employees/attendance/payroll/branches/departments remain on the existing
-// JSON-blob store (src/database.js) — out of scope for this phase.
+// Users/Roles/Permissions (RBAC) models below, then business data (Branch,
+// Department, Employee, Attendance, etc.) further down.
 
 model Permission {
   id      String           @id @default(auto()) @map("_id") @db.ObjectId
@@ -72,6 +71,7 @@ model Department {
   id         String  @id @map("_id")
   name       String?
   branchCode String?
+  head       String?
 }
 
 model Employee {
