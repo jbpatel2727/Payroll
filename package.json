@@ -4,7 +4,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
-    "dev": "npx nodemon --env-file-if-exists=.env src/server.js"
+    "dev": "npx nodemon --env-file-if-exists=.env src/server.js",
+    "build": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "engines": {
     "node": ">=22.5.0"
