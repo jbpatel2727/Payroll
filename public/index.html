@@ -2269,7 +2269,7 @@
                             <td class="hidden md:table-cell px-4 py-3 text-xs text-indigo-600 font-medium">${emp.dept}</td>
                             <td class="hidden md:table-cell px-4 py-3 text-xs text-gray-600">${emp.shift}</td>
                             <td class="px-4 py-3 text-center">
-                                <select onchange="updateAttendanceStatus('${emp.id}', '${dateVal}', this.value)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition ${selectColor}" ${currentStatus === 'Present' ? 'disabled' : ''}>
+                                <select onchange="updateAttendanceStatus('${emp.id}', '${dateVal}', this.value)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition ${selectColor}">
                                     <option value="Present" ${currentStatus === 'Present' ? 'selected' : ''}>Present</option>
                                     <option value="Absent" ${currentStatus === 'Absent' ? 'selected' : ''}>Absent</option>
                                     <option value="On Leave" ${currentStatus === 'On Leave' || currentStatus === 'Leave' ? 'selected' : ''}>On Leave</option>
@@ -2315,7 +2315,7 @@
                                 <div class="flex items-center space-x-2">
                                     <span id="attUpdatedTag-${emp.id}" class="hidden text-[10px] font-semibold text-green-600"><i class="fa-solid fa-check mr-0.5"></i>Updated</span>
                                     <div class="relative">
-                                        <select onchange="updateAttendanceStatus('${emp.id}', '${dateVal}', this.value)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition ${selectColor}" ${currentStatus === 'Present' ? 'disabled' : ''}>
+                                        <select onchange="updateAttendanceStatus('${emp.id}', '${dateVal}', this.value)" class="px-3 py-1.5 text-xs font-semibold rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition ${selectColor}">
                                             <option value="Present" ${currentStatus === 'Present' ? 'selected' : ''}>Present</option>
                                             <option value="Absent" ${currentStatus === 'Absent' ? 'selected' : ''}>Absent</option>
                                             <option value="On Leave" ${currentStatus === 'On Leave' || currentStatus === 'Leave' ? 'selected' : ''}>On Leave</option>
@@ -2375,15 +2375,6 @@
             if (!emp) return;
 
             if (!emp.dailyLogs) emp.dailyLogs = {};
-            const oldStatus = emp.dailyLogs[dateStr] || 'Present';
-
-            // Prevent updating "Present" status
-            if (oldStatus === 'Present' && newStatus !== 'Present') {
-                alert('Some attendance records could not be saved.');
-                filterAttendanceCards();
-                return;
-            }
-
             emp.dailyLogs[dateStr] = newStatus;
 
             if (dateStr === TODAY_DATE) {
